@@ -9,7 +9,8 @@
   "homepage": "https://github.com/Newan/ioBroker.easee",
   "license": "MIT",
   "keywords": [
-    "Wallbox easee"
+    "Wallbox easee",
+    "ioBroker"
   ],
   "repository": {
     "type": "git",
