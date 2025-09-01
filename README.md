@@ -35,6 +35,9 @@ dynamicCircuitCurrentPX -> All phases must be set within 500ms (script) otherwis
   Placeholder for the next version (at the beginning of the line):
   ### **WORK IN PROGRESS**
 -->
+### 1.0.12 (2025-09-01)
+* (NCIceWolf) updated dependencies
+* 
 ### 1.0.11 (2025-08-01)
 * (NCIceWolf) updated quite some dependencies
 
