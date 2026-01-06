@@ -23,7 +23,7 @@
     "@iobroker/adapter-core": "^3.3.2",
     "@microsoft/signalr": "^10.0.0",
     "axios": "^1.13.2",
-    "minimatch": "^10.0.3"
+    "minimatch": "^10.1.1"
   },
   "devDependencies": {
     "@alcalzone/release-script": "^3.8.0",
