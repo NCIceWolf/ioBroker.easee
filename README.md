@@ -27,7 +27,7 @@ chargerOpMode =
     Error: 5,
     ReadyToCharge: 6
 
-dynamicCircuitCurrentPX -> All phases must be set within 500ms (script) otherwise the phase will be set to 0.    
+dynamicCircuitCurrentPX -> All phases must be set within 1000ms (script) otherwise the phase will be set to 0.    
 
 
 ## Changelog
