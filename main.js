@@ -202,7 +202,7 @@ class Easee extends utils.Adapter {
             //lesen der Energiedaten
             const tmpChargerSession = await this.getChargerSession(charger.id);
             //setzen die Objekte
-            this.setNewSessionToCharger(charger, tmpChargerSession);
+            await this.setNewSessionToCharger(charger, tmpChargerSession);
           }
         } catch (error) {
           if (typeof error === "string") {
@@ -270,10 +270,9 @@ class Easee extends utils.Adapter {
               }
 
               //Warten mit dem Update 1000ms um weitere Phasen zu setzen:
-              if (adapterIntervals.updateDynamicCircuitCurrent != null) {
+              if (adapterIntervals.updateDynamicCircuitCurrent !== null) {
                 clearTimeout(adapterIntervals.updateDynamicCircuitCurrent);
                 adapterIntervals.updateDynamicCircuitCurrent = null;
-
               }
               adapterIntervals.updateDynamicCircuitCurrent = setTimeout(async () => {
                 await this.changeCircuitConfig(site.id, site.circuits[0].id);
@@ -296,27 +295,27 @@ class Easee extends utils.Adapter {
         // control charger
         switch (tmpControl[4]) {
           case "start":
-            // Starten Ladevorgang
+            // Start charging
             this.log.info(`Starting charging for Charger.id: ${tmpControl[2]}`);
             this.startCharging(tmpControl[2]);
             break;
           case "stop":
-            //  Stopen Ladevorgang
+            //  Stop charging
             this.log.info(`Stopping charging for Charger.id: ${tmpControl[2]}`);
             this.stopCharging(tmpControl[2]);
             break;
           case "pause":
-            //  Pausiere Ladevorgang
+            //  Pause charging
             this.log.info(`Pause charging for Charger.id: ${tmpControl[2]}`);
             this.pauseCharging(tmpControl[2]);
             break;
           case "resume":
-            //  Resume Ladevorgang
+            //  Resume charging
             this.log.info(`Resume charging for Charger.id: ${tmpControl[2]}`);
             this.resumeCharging(tmpControl[2]);
             break;
           case "reboot":
-            //  Reboot Charger
+            //  Reboot charger
             this.log.info(`Reboot Charger.id: ${tmpControl[2]}`);
             this.rebootCharging(tmpControl[2]);
             break;
@@ -604,27 +603,27 @@ class Easee extends utils.Adapter {
 
   //dynamicCircuitCurrentPX
   async changeCircuitConfig(site_id, circuit_id) {
-
-    //Der Wert darf nur für 3 Fach Werte aktualisiert werden
-    await axios.post(apiUrl + "/api/sites/" + site_id + "/circuits/" + circuit_id + "/settings", {
-      "dynamicCircuitCurrentP1": dynamicCircuitCurrentP1,
-      "dynamicCircuitCurrentP2": dynamicCircuitCurrentP2,
-      "dynamicCircuitCurrentP3": dynamicCircuitCurrentP3
-    }, {
-      headers: { "Authorization": `Bearer ${accessToken}` }
-    }).then(response => {
-      this.log.info("Circuit update successful");
+    try {
+      //Der Wert darf nur für 3 Fach Werte aktualisiert werden
+      const response = await axios.post(apiUrl + "/api/sites/" + site_id + "/circuits/" + circuit_id + "/settings", {
+        "dynamicCircuitCurrentP1": dynamicCircuitCurrentP1,
+        "dynamicCircuitCurrentP2": dynamicCircuitCurrentP2,
+        "dynamicCircuitCurrentP3": dynamicCircuitCurrentP3
+      }, {
+        headers: { "Authorization": `Bearer ${accessToken}` }
+      });
+      this.log.info('Circuit update successful');
       this.log.debug(JSON.stringify(response.data));
-    }).catch((error) => {
-      this.log.error("Circuit update error");
-      this.log.error(error);
-    });
 
-    //setze Werte zurück
-    adapterIntervals.updateDynamicCircuitCurrent = null;
-    dynamicCircuitCurrentP1 = 0;
-    dynamicCircuitCurrentP2 = 0;
-    dynamicCircuitCurrentP3 = 0;
+      //setze Werte zurück
+      adapterIntervals.updateDynamicCircuitCurrent = null;
+      dynamicCircuitCurrentP1 = 0;
+      dynamicCircuitCurrentP2 = 0;
+      dynamicCircuitCurrentP3 = 0;
+    } catch (error) {
+      this.log.error('Circuit update error');
+      this.log.error(error);
+    }
   }
 
   /***********************************************************************
