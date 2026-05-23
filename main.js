@@ -268,7 +268,7 @@ onUnload(callback) {
                                     break;
                             }
 
-                            //Warten mit dem Update 500ms um weitere Phasen zu setzen:
+                            //Warten mit dem Update 1000ms um weitere Phasen zu setzen:
                             if (adapterIntervals.updateDynamicCircuitCurrent != null) {
                                 clearTimeout(adapterIntervals.updateDynamicCircuitCurrent);
                                 adapterIntervals.updateDynamicCircuitCurrent = null;
@@ -276,7 +276,7 @@ onUnload(callback) {
                             }
                             adapterIntervals.updateDynamicCircuitCurrent = setTimeout( async () => {
                                 await this.changeCircuitConfig(site.id, site.circuits[0].id);
-                            }, 500);
+                            }, 1000);
 
                         });
 
@@ -383,7 +383,7 @@ onUnload(callback) {
 
         //Values for sites
         await this.setStateAsync(charger.id + '.config.circuitMaxCurrentP1', { val: charger_config.circuitMaxCurrentP1, ack: true });
-        await this.setStateAsync(charger.id + '.config.circuitMaxCurrentP2', { val: charger_config.circuitMaxCurrentP3, ack: true });
+        await this.setStateAsync(charger.id + '.config.circuitMaxCurrentP2', { val: charger_config.circuitMaxCurrentP2, ack: true });
         await this.setStateAsync(charger.id + '.config.circuitMaxCurrentP3', { val: charger_config.circuitMaxCurrentP3, ack: true });
     }
 
