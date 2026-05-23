@@ -35,6 +35,13 @@ dynamicCircuitCurrentPX -> All phases must be set within 1000ms (script) otherwi
   Placeholder for the next version (at the beginning of the line):
   ### **WORK IN PROGRESS**
 -->
+### 1.0.15 (2026-05-23)
+* (NCIceWolf) updated dependencies
+* (NCIceWolf) Refactor comments and improve error handling
+* (NCIceWolf) Fix ESLint errors and code quality issues
+* (NCIceWolf) Fix circuitMaxCurrentP2 assignment
+* (NCIceWolf) Update dynamicCircuitCurrentPX timing requirement to 1000ms
+
 ### 1.0.14 (2026-01-06)
 * (NCIceWolf) updated dependencies
 * (NCIceWolf) updated copyright years
