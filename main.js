@@ -70,7 +70,7 @@ class Easee extends utils.Adapter {
       this.lastSignalRActivity = Date.now();
       //haben einen neuen Wert über SignalR erhalten
       const data_name = objEnum.getNameByEnum(data.id);
-      if (data_name == undefined) {
+      if (data_name === undefined) {
         this.log.debug(`New SignalR-ID, possible new Value: ${data.id}`);
         this.log.debug(JSON.stringify(data));
       } else {
@@ -81,13 +81,13 @@ class Easee extends utils.Adapter {
         );
         switch (data.dataType) {
           case 2:
-            data.value = data.value == "1";
+            data.value = data.value === "1";
             break;
           case 3:
             data.value = parseFloat(data.value);
             break;
           case 4:
-            data.value = parseInt(data.value);
+            data.value = parseInt(data.value, 10);
             break;
           //case 6: JSON
         }
@@ -182,9 +182,9 @@ class Easee extends utils.Adapter {
     }
     logtype = this.config.logtype;
     // Testen ob der Login funktioniert
-    if (this.config.username == "" || this.config.username == "+49") {
+    if (this.config.username === "" || this.config.username === "+49") {
       this.log.error("No username set");
-    } else if (this.config.client_secret == "") {
+    } else if (this.config.client_secret === "") {
       this.log.error("No password set");
     } else {
       this.log.debug("Api login started");
