@@ -365,7 +365,7 @@ class Easee extends utils.Adapter {
 
       // Clear sensitive data
       this.accessToken = "";
-      this.Tokenrefresh = "";
+      this.refreshToken = "";
       this.expireTime = Date.now();
 
       this.log.info("Adapter cleanup completed");
