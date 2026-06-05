@@ -1463,6 +1463,30 @@ class Easee extends utils.Adapter {
           role: "value.power.consumption",
           unit: "kWh",
         },
+        {
+          name: "fatalErrorCode",
+          displayName: "Fatal error code",
+          type: "number",
+          role: "value",
+        },
+        {
+          name: "chargingSessionStart",
+          displayName: "Charging session start",
+          type: "string",
+          role: "value.datetime",
+        },
+        {
+          name: "connectedToCloud",
+          displayName: "Connected to cloud",
+          type: "boolean",
+          role: "indicator.connected",
+        },
+        {
+          name: "cloudDisconnectReason",
+          displayName: "Cloud disconnect reason",
+          type: "string",
+          role: "value",
+        },
       ];
 
       for (const obj of statusObjects) {
@@ -1537,6 +1561,19 @@ class Easee extends utils.Adapter {
           name: "Maximum temperature (SignalR only)",
           type: "number",
           role: "value.temperature.max",
+          read: true,
+          write: false,
+        },
+        native: {},
+      });
+
+      // Add wiFiMACAddress to config objects
+      await this.setObjectNotExistsAsync(`${baseId}.config.wiFiMACAddress`, {
+        type: "state",
+        common: {
+          name: "WiFi MAC address",
+          type: "string",
+          role: "text",
           read: true,
           write: false,
         },
