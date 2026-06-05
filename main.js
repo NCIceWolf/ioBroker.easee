@@ -11,11 +11,25 @@ const API_URL = "https://api.easee.com";
 const SIGNAL_R_URL = "https://streams.easee.com/hubs/chargers";
 const MIN_POLL_TIME_ENERGY = 1800; // seconds
 const TOKEN_SAFETY_MARGIN = 30000; // milliseconds
+const SIGNAL_R_WATCHDOG_INTERVAL = 60000; // milliseconds (check every 60s)
+const SIGNAL_R_SILENCE_THRESHOLD = 120000; // milliseconds (2 minutes)
+const SIGNAL_R_MAX_BACKOFF = 60000; // milliseconds
+const DEBOUNCE_DYNAMIC_CIRCUIT = 500; // milliseconds
+const HTTP_RETRY_DELAY = 1000; // milliseconds
+const API_RETRY_ATTEMPTS = 2;
 
 // Instance state (will be moved to class instance for better encapsulation)
 const adapterIntervals = {};
 
+/**
+ * Easee EV Charger Adapter for ioBroker
+ * Communicates with the Easee Wallbox API and SignalR for real-time updates
+ */
 class Easee extends utils.Adapter {
+  /**
+   * Constructor for the Easee adapter
+   * @param {Object} options - Adapter options
+   */
   constructor(options) {
     super({
       ...options,
@@ -61,6 +75,8 @@ class Easee extends utils.Adapter {
   /**
    * Validate charger ID format
    * @param {string} chargerId - The charger ID to validate
+   * @returns {string} The trimmed charger ID
+   * @throws {Error} If charger ID is invalid
    */
   validateChargerId(chargerId) {
     if (!chargerId || typeof chargerId !== "string" || chargerId.trim() === "") {
@@ -72,6 +88,8 @@ class Easee extends utils.Adapter {
   /**
    * Validate site ID format
    * @param {string} siteId - The site ID to validate
+   * @returns {string} The trimmed site ID
+   * @throws {Error} If site ID is invalid
    */
   validateSiteId(siteId) {
     if (!siteId || typeof siteId !== "string" || siteId.trim() === "") {
@@ -83,6 +101,8 @@ class Easee extends utils.Adapter {
   /**
    * Validate circuit ID format
    * @param {string} circuitId - The circuit ID to validate
+   * @returns {string} The trimmed circuit ID
+   * @throws {Error} If circuit ID is invalid
    */
   validateCircuitId(circuitId) {
     if (!circuitId || typeof circuitId !== "string" || circuitId.trim() === "") {
@@ -159,6 +179,7 @@ class Easee extends utils.Adapter {
     this.log.debug(
       `New value over SignalR for: ${tmpValueId}, value: ${convertedValue}`
     );
+    // Fire and forget with error logging
     this.setStateAsync(tmpValueId, { val: convertedValue, ack: true }).catch(
       (err) => {
         this.log.error(`Failed to set state ${tmpValueId}: ${this.getErrorMessage(err)}`);
@@ -170,6 +191,7 @@ class Easee extends utils.Adapter {
    * Convert SignalR value based on dataType
    * @param {*} value - The value to convert
    * @param {number} dataType - The data type code (2=boolean, 3=float, 4=integer)
+   * @returns {*} The converted value
    */
   convertSignalRValue(value, dataType) {
     switch (dataType) {
@@ -188,8 +210,8 @@ class Easee extends utils.Adapter {
    * Subscribe all known chargers to SignalR
    * @param {Object} connection - The SignalR connection instance
    */
-  subscribeAllChargersToSignalR(connection) {
-    this.arrCharger.forEach((chargerId) => {
+  async subscribeAllChargersToSignalR(connection) {
+    const subscriptions = this.arrCharger.map((chargerId) =>
       connection
         .send("SubscribeWithCurrentState", chargerId, true)
         .then(() => {
@@ -199,8 +221,11 @@ class Easee extends utils.Adapter {
           this.log.warn(
             `SignalR subscribe for ${chargerId} failed: ${this.getErrorMessage(err)}`
           );
-        });
-    });
+        })
+    );
+
+    // Wait for all subscriptions to complete
+    await Promise.all(subscriptions);
   }
 
   /**
@@ -216,7 +241,7 @@ class Easee extends utils.Adapter {
 
     this.signalRBackoffMs = Math.min(
       (this.signalRBackoffMs || 1000) * 2,
-      60000
+      SIGNAL_R_MAX_BACKOFF
     );
 
     this.signalRReconnectTimer = setTimeout(() => {
@@ -235,7 +260,7 @@ class Easee extends utils.Adapter {
       if (this.signalRUnloaded) return;
 
       const silenceMs = Date.now() - (this.lastSignalRActivity || 0);
-      if (silenceMs > 120000) {
+      if (silenceMs > SIGNAL_R_SILENCE_THRESHOLD) {
         this.log.warn(
           `SignalR silent for ${Math.round(silenceMs / 1000)}s, forcing reconnect`
         );
@@ -247,7 +272,7 @@ class Easee extends utils.Adapter {
           });
         }
       }
-    }, 60000);
+    }, SIGNAL_R_WATCHDOG_INTERVAL);
   }
 
   /**
@@ -272,6 +297,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Validate adapter configuration
+   * @throws {Error} If configuration is invalid
    */
   validateConfiguration() {
     if (!this.config.username || this.config.username === "+49") {
@@ -421,8 +447,9 @@ class Easee extends utils.Adapter {
         try {
           await this.processCharger(charger);
         } catch (error) {
+          const chargeId = charger?.id || "unknown";
           this.log.error(
-            `Error processing charger ${charger?.id}: ${this.getErrorMessage(error)}`
+            `Error processing charger ${chargeId}: ${this.getErrorMessage(error)}`
           );
         }
       }
@@ -458,6 +485,7 @@ class Easee extends utils.Adapter {
   /**
    * Process a single charger
    * @param {Object} charger - The charger object to process
+   * @throws {Error} If charger is invalid
    */
   async processCharger(charger) {
     if (!charger || !charger.id) {
@@ -639,7 +667,7 @@ class Easee extends utils.Adapter {
         throw new Error("Invalid site data: no circuits found");
       }
 
-      // Debounce the update by 500ms to collect all phase changes
+      // Debounce the update to collect all phase changes
       adapterIntervals.updateDynamicCircuitCurrent = setTimeout(
         async () => {
           try {
@@ -658,7 +686,7 @@ class Easee extends utils.Adapter {
             adapterIntervals.updateDynamicCircuitCurrent = undefined;
           }
         },
-        500
+        DEBOUNCE_DYNAMIC_CIRCUIT
       );
     } catch (error) {
       this.log.error(
@@ -842,6 +870,7 @@ class Easee extends utils.Adapter {
    * API: Login and get access token
    * @param {string} username - The username for authentication
    * @param {string} password - The password for authentication
+   * @returns {boolean} True if login was successful
    */
   async login(username, password) {
     try {
@@ -879,6 +908,7 @@ class Easee extends utils.Adapter {
 
   /**
    * API: Refresh access token
+   * @returns {boolean} True if token refresh was successful
    */
   async renewToken() {
     try {
@@ -928,6 +958,8 @@ class Easee extends utils.Adapter {
    * Helper: GET with proper error handling and retry on 5xx
    * @param {string} path - The API path to request
    * @param {string} context - The context string for logging
+   * @returns {*} The response data
+   * @throws {Error} If the API request fails
    */
   async _apiGet(path, context) {
     const url = API_URL + path;
@@ -937,7 +969,7 @@ class Easee extends utils.Adapter {
       },
     };
 
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    for (let attempt = 1; attempt <= API_RETRY_ATTEMPTS; attempt++) {
       try {
         const response = await axios.get(url, config);
         this.log.debug(`${context}: success`);
@@ -962,9 +994,9 @@ class Easee extends utils.Adapter {
         if (status >= 500 && status < 600 && attempt === 1) {
           // Server error, retry once
           this.log.warn(
-            `${context}: HTTP ${status}, retrying in 1s`
+            `${context}: HTTP ${status}, retrying in ${HTTP_RETRY_DELAY}ms`
           );
-          await new Promise((r) => setTimeout(r, 1000));
+          await new Promise((r) => setTimeout(r, HTTP_RETRY_DELAY));
           continue;
         }
 
@@ -978,6 +1010,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Get all chargers
+   * @returns {Array|undefined} Array of charger objects or undefined if request failed
    */
   async getAllCharger() {
     try {
@@ -991,6 +1024,7 @@ class Easee extends utils.Adapter {
   /**
    * Get charger state
    * @param {string} chargerId - The charger ID
+   * @returns {Object} Charger state data
    */
   async getChargerState(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1003,6 +1037,7 @@ class Easee extends utils.Adapter {
   /**
    * Get charger configuration
    * @param {string} chargerId - The charger ID
+   * @returns {Object} Charger configuration data
    */
   async getChargerConfig(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1015,6 +1050,7 @@ class Easee extends utils.Adapter {
   /**
    * Get charger site information
    * @param {string} chargerId - The charger ID
+   * @returns {Object} Charger site data
    */
   async getChargerSite(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1027,6 +1063,7 @@ class Easee extends utils.Adapter {
   /**
    * Get charger session data
    * @param {string} chargerId - The charger ID
+   * @returns {Array} Charger session data array
    */
   async getChargerSession(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1039,6 +1076,7 @@ class Easee extends utils.Adapter {
   /**
    * Start charging
    * @param {string} chargerId - The charger ID
+   * @throws {Error} If the command fails
    */
   async startCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1064,6 +1102,7 @@ class Easee extends utils.Adapter {
   /**
    * Stop charging
    * @param {string} chargerId - The charger ID
+   * @throws {Error} If the command fails
    */
   async stopCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1089,6 +1128,7 @@ class Easee extends utils.Adapter {
   /**
    * Pause charging
    * @param {string} chargerId - The charger ID
+   * @throws {Error} If the command fails
    */
   async pauseCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1114,6 +1154,7 @@ class Easee extends utils.Adapter {
   /**
    * Resume charging
    * @param {string} chargerId - The charger ID
+   * @throws {Error} If the command fails
    */
   async resumeCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1139,6 +1180,7 @@ class Easee extends utils.Adapter {
   /**
    * Reboot charger
    * @param {string} chargerId - The charger ID
+   * @throws {Error} If the command fails
    */
   async rebootCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1166,6 +1208,7 @@ class Easee extends utils.Adapter {
    * @param {string} chargerId - The charger ID
    * @param {string} configKey - The configuration key to update
    * @param {*} value - The new configuration value
+   * @throws {Error} If the update fails
    */
   async changeConfig(chargerId, configKey, value) {
     chargerId = this.validateChargerId(chargerId);
@@ -1202,6 +1245,7 @@ class Easee extends utils.Adapter {
    * @param {string} siteId - The site ID
    * @param {string} circuitId - The circuit ID
    * @param {number} value - The maximum current value in amperes
+   * @throws {Error} If the update fails
    */
   async changeMaxCircuitConfig(siteId, circuitId, value) {
     siteId = this.validateSiteId(siteId);
@@ -1241,6 +1285,7 @@ class Easee extends utils.Adapter {
    * Change dynamic circuit current
    * @param {string} siteId - The site ID
    * @param {string} circuitId - The circuit ID
+   * @throws {Error} If the update fails
    */
   async changeCircuitConfig(siteId, circuitId) {
     siteId = this.validateSiteId(siteId);
@@ -1740,6 +1785,7 @@ class Easee extends utils.Adapter {
   /**
    * Helper: Extract error message from various error types
    * @param {*} error - The error object to extract message from
+   * @returns {string} The error message
    */
   getErrorMessage(error) {
     if (!error) return "Unknown error";
