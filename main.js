@@ -60,6 +60,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Validate charger ID format
+   * @param {string} chargerId - The charger ID to validate
    */
   validateChargerId(chargerId) {
     if (!chargerId || typeof chargerId !== "string" || chargerId.trim() === "") {
@@ -70,6 +71,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Validate site ID format
+   * @param {string} siteId - The site ID to validate
    */
   validateSiteId(siteId) {
     if (!siteId || typeof siteId !== "string" || siteId.trim() === "") {
@@ -80,6 +82,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Validate circuit ID format
+   * @param {string} circuitId - The circuit ID to validate
    */
   validateCircuitId(circuitId) {
     if (!circuitId || typeof circuitId !== "string" || circuitId.trim() === "") {
@@ -133,6 +136,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Handle ProductUpdate event from SignalR
+   * @param {Object} data - The product update data from SignalR
    */
   handleSignalRProductUpdate(data) {
     // Update heartbeat first
@@ -164,6 +168,8 @@ class Easee extends utils.Adapter {
 
   /**
    * Convert SignalR value based on dataType
+   * @param {*} value - The value to convert
+   * @param {number} dataType - The data type code (2=boolean, 3=float, 4=integer)
    */
   convertSignalRValue(value, dataType) {
     switch (dataType) {
@@ -180,6 +186,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Subscribe all known chargers to SignalR
+   * @param {Object} connection - The SignalR connection instance
    */
   subscribeAllChargersToSignalR(connection) {
     this.arrCharger.forEach((chargerId) => {
@@ -332,6 +339,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Clean up and unload the adapter
+   * @param {Function} callback - The callback function to invoke when unload is complete
    */
   onUnload(callback) {
     try {
@@ -449,6 +457,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Process a single charger
+   * @param {Object} charger - The charger object to process
    */
   async processCharger(charger) {
     if (!charger || !charger.id) {
@@ -487,6 +496,8 @@ class Easee extends utils.Adapter {
 
   /**
    * Handle state change events
+   * @param {string} id - The state ID that changed
+   * @param {Object} state - The new state object
    */
   onStateChange(id, state) {
     if (!state) {
@@ -521,6 +532,9 @@ class Easee extends utils.Adapter {
 
   /**
    * Handle configuration change
+   * @param {string} chargerId - The charger ID
+   * @param {string} property - The property name being changed
+   * @param {Object} state - The new state object
    */
   async handleConfigChange(chargerId, property, state) {
     try {
@@ -565,6 +579,9 @@ class Easee extends utils.Adapter {
 
   /**
    * Handle circuit max current change
+   * @param {string} chargerId - The charger ID
+   * @param {string} property - The property name
+   * @param {number} value - The new current value in amperes
    */
   async handleCircuitMaxCurrentChange(chargerId, property, value) {
     try {
@@ -591,6 +608,9 @@ class Easee extends utils.Adapter {
 
   /**
    * Handle dynamic circuit current change with debouncing
+   * @param {string} chargerId - The charger ID
+   * @param {string} property - The property name (dynamicCircuitCurrentP1/P2/P3)
+   * @param {number} value - The new current value in amperes
    */
   async handleDynamicCircuitCurrentChange(
     chargerId,
@@ -649,6 +669,8 @@ class Easee extends utils.Adapter {
 
   /**
    * Handle control commands (start, stop, pause, resume, reboot)
+   * @param {string} chargerId - The charger ID
+   * @param {string} command - The command to execute
    */
   async handleControlChange(chargerId, command) {
     try {
@@ -679,6 +701,8 @@ class Easee extends utils.Adapter {
 
   /**
    * Set charger status values
+   * @param {Object} charger - The charger object
+   * @param {Object} chargerStates - The charger state data from API
    */
   async setNewStatusToCharger(charger, chargerStates) {
     try {
@@ -753,6 +777,8 @@ class Easee extends utils.Adapter {
 
   /**
    * Set charger configuration values
+   * @param {Object} charger - The charger object
+   * @param {Object} chargerConfig - The charger configuration data from API
    */
   async setConfigStatus(charger, chargerConfig) {
     try {
@@ -814,6 +840,8 @@ class Easee extends utils.Adapter {
 
   /**
    * API: Login and get access token
+   * @param {string} username - The username for authentication
+   * @param {string} password - The password for authentication
    */
   async login(username, password) {
     try {
@@ -898,6 +926,8 @@ class Easee extends utils.Adapter {
 
   /**
    * Helper: GET with proper error handling and retry on 5xx
+   * @param {string} path - The API path to request
+   * @param {string} context - The context string for logging
    */
   async _apiGet(path, context) {
     const url = API_URL + path;
@@ -960,6 +990,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Get charger state
+   * @param {string} chargerId - The charger ID
    */
   async getChargerState(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -971,6 +1002,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Get charger configuration
+   * @param {string} chargerId - The charger ID
    */
   async getChargerConfig(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -982,6 +1014,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Get charger site information
+   * @param {string} chargerId - The charger ID
    */
   async getChargerSite(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -993,6 +1026,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Get charger session data
+   * @param {string} chargerId - The charger ID
    */
   async getChargerSession(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1004,6 +1038,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Start charging
+   * @param {string} chargerId - The charger ID
    */
   async startCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1028,6 +1063,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Stop charging
+   * @param {string} chargerId - The charger ID
    */
   async stopCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1052,6 +1088,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Pause charging
+   * @param {string} chargerId - The charger ID
    */
   async pauseCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1076,6 +1113,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Resume charging
+   * @param {string} chargerId - The charger ID
    */
   async resumeCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1100,6 +1138,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Reboot charger
+   * @param {string} chargerId - The charger ID
    */
   async rebootCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
@@ -1124,6 +1163,9 @@ class Easee extends utils.Adapter {
 
   /**
    * Change charger configuration
+   * @param {string} chargerId - The charger ID
+   * @param {string} configKey - The configuration key to update
+   * @param {*} value - The new configuration value
    */
   async changeConfig(chargerId, configKey, value) {
     chargerId = this.validateChargerId(chargerId);
@@ -1157,6 +1199,9 @@ class Easee extends utils.Adapter {
 
   /**
    * Change circuit maximum current
+   * @param {string} siteId - The site ID
+   * @param {string} circuitId - The circuit ID
+   * @param {number} value - The maximum current value in amperes
    */
   async changeMaxCircuitConfig(siteId, circuitId, value) {
     siteId = this.validateSiteId(siteId);
@@ -1194,6 +1239,8 @@ class Easee extends utils.Adapter {
 
   /**
    * Change dynamic circuit current
+   * @param {string} siteId - The site ID
+   * @param {string} circuitId - The circuit ID
    */
   async changeCircuitConfig(siteId, circuitId) {
     siteId = this.validateSiteId(siteId);
@@ -1232,6 +1279,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Create status objects for a charger
+   * @param {Object} charger - The charger object
    */
   async setAllStatusObjects(charger) {
     try {
@@ -1474,6 +1522,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Create configuration objects for a charger
+   * @param {Object} charger - The charger object
    */
   async setAllConfigObjects(charger) {
     try {
@@ -1602,6 +1651,8 @@ class Easee extends utils.Adapter {
 
   /**
    * Set charger session data
+   * @param {Object} charger - The charger object
+   * @param {Array} chargerSessions - The charger session data array
    */
   async setNewSessionToCharger(charger, chargerSessions) {
     try {
@@ -1688,6 +1739,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Helper: Extract error message from various error types
+   * @param {*} error - The error object to extract message from
    */
   getErrorMessage(error) {
     if (!error) return "Unknown error";
