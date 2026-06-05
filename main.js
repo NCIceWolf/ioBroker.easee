@@ -41,7 +41,7 @@ class Easee extends utils.Adapter {
     this.signalRReconnectTimer = undefined;
     this.signalRWatchdog = undefined;
     this.signalConnection = undefined;
-    this.lastSignalRActivity = Date.now();
+    this.lastSignalRActivity = undefined;
 
     // Configure axios with HTTPS certificate validation
     this.configureAxios();
