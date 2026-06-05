@@ -12,7 +12,7 @@ const SIGNAL_R_URL = "https://streams.easee.com/hubs/chargers";
 const MIN_POLL_TIME_ENERGY = 1800; // seconds
 const TOKEN_SAFETY_MARGIN = 30000; // milliseconds
 const SIGNALR_WATCHDOG_INTERVAL_MS = 60000;
-const SIGNALR_SILENCE_THRESHOLD_MS = 120000;
+const SIGNALR_SILENCE_THRESHOLD_MS = 180000;
 const API_TIMEOUT_MS = 30000;
 
 class Easee extends utils.Adapter {
