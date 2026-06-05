@@ -334,6 +334,11 @@ class Easee extends utils.Adapter {
    ***********************************************************************/
 
   //Setzen alle Status für Charger
+  /**
+   * Sets all status states for a charger
+   * @param {Object} charger The charger object
+   * @param {Object} charger_states The charger state data
+   */
   async setNewStatusToCharger(charger, charger_states) {
     await this.setStateAsync(charger.id + ".name", charger.name, true);
     await this.setStateAsync(charger.id + ".status.cableLocked", charger_states.cableLocked, true);
@@ -373,6 +378,11 @@ class Easee extends utils.Adapter {
   }
 
   //Setzen alle Status für Config
+  /**
+   * Sets all config states for a charger
+   * @param {Object} charger The charger object
+   * @param {Object} charger_config The charger configuration data
+   */
   async setConfigStatus(charger, charger_config) {
     await this.setStateAsync(charger.id + ".config.isEnabled", { val: charger_config.isEnabled, ack: true });
     await this.setStateAsync(charger.id + ".config.phaseMode", { val: charger_config.phaseMode, ack: true });
@@ -454,6 +464,10 @@ class Easee extends utils.Adapter {
   }
 
   // Lese den Charger aus
+  /**
+   * Gets the charger state from the API
+   * @param {string} charger_id The charger ID
+   */
   async getChargerState(charger_id) {
     return await axios.get(apiUrl + "/api/chargers/" + charger_id + "/state", {
       headers: { "Authorization": `Bearer ${accessToken}` }
@@ -467,6 +481,10 @@ class Easee extends utils.Adapter {
     });
   }
 
+  /**
+   * Gets the charger configuration from the API
+   * @param {string} charger_id The charger ID
+   */
   async getChargerConfig(charger_id) {
     return await axios.get(apiUrl + "/api/chargers/" + charger_id + "/config", {
       headers: { "Authorization": `Bearer ${accessToken}` }
@@ -480,6 +498,10 @@ class Easee extends utils.Adapter {
     });
   }
 
+  /**
+   * Gets the charger site from the API
+   * @param {string} charger_id The charger ID
+   */
   async getChargerSite(charger_id) {
     return await axios.get(apiUrl + "/api/chargers/" + charger_id + "/site", {
       headers: { "Authorization": `Bearer ${accessToken}` }
@@ -493,6 +515,10 @@ class Easee extends utils.Adapter {
     });
   }
 
+  /**
+   * Gets the charger session from the API
+   * @param {string} charger_id The charger ID
+   */
   async getChargerSession(charger_id) {
     return await axios.get(apiUrl + "/api/sessions/charger/" + charger_id + "/monthly", {
       headers: { "Authorization": `Bearer ${accessToken}` }
@@ -567,6 +593,12 @@ class Easee extends utils.Adapter {
   }
 
 
+  /**
+   * Changes charger configuration
+   * @param {string} id The charger ID
+   * @param {string} configvalue The configuration key to change
+   * @param {*} value The value to set
+   */
   async changeConfig(id, configvalue, value) {
     this.log.debug(JSON.stringify({
       [configvalue]: value
@@ -585,8 +617,14 @@ class Easee extends utils.Adapter {
   }
 
   //circuitMaxCurrentPX
-  async changeMaxCircuitConfig(site_id, circuit_id, value) {
-    return await axios.post(apiUrl + "/api/sites/" + site_id + "/circuits/" + circuit_id + "/settings", {
+  /**
+   * Changes the maximum circuit configuration
+   * @param {string} siteId The site ID
+   * @param {string} circuitId The circuit ID
+   * @param {number} value The current value to set
+   */
+  async changeMaxCircuitConfig(siteId, circuitId, value) {
+    return await axios.post(apiUrl + "/api/sites/" + siteId + "/circuits/" + circuitId + "/settings", {
       "maxCircuitCurrentP1": value,
       "maxCircuitCurrentP2": value,
       "maxCircuitCurrentP3": value,
@@ -602,10 +640,15 @@ class Easee extends utils.Adapter {
   }
 
   //dynamicCircuitCurrentPX
-  async changeCircuitConfig(site_id, circuit_id) {
+  /**
+   * Changes the dynamic circuit configuration
+   * @param {string} siteId The site ID
+   * @param {string} circuitId The circuit ID
+   */
+  async changeCircuitConfig(siteId, circuitId) {
     try {
       //Der Wert darf nur für 3 Fach Werte aktualisiert werden
-      const response = await axios.post(apiUrl + "/api/sites/" + site_id + "/circuits/" + circuit_id + "/settings", {
+      const response = await axios.post(apiUrl + "/api/sites/" + siteId + "/circuits/" + circuitId + "/settings", {
         "dynamicCircuitCurrentP1": dynamicCircuitCurrentP1,
         "dynamicCircuitCurrentP2": dynamicCircuitCurrentP2,
         "dynamicCircuitCurrentP3": dynamicCircuitCurrentP3
@@ -1102,6 +1145,11 @@ class Easee extends utils.Adapter {
   }
 
   /*************** Session Reading ****************/
+  /**
+   * Sets all session data for a charger
+   * @param {Object} charger The charger object
+   * @param {Array} charger_session The charger session data
+   */
   async setNewSessionToCharger(charger, charger_session) {
     this.log.debug(JSON.stringify(charger_session));
     charger_session.forEach(async session => {
