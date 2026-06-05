@@ -365,7 +365,7 @@ class Easee extends utils.Adapter {
 
       // Clear sensitive data
       this.accessToken = "";
-      this.refreshToken = "";
+      this.Tokenrefresh = "";
       this.expireTime = Date.now();
 
       this.log.info("Adapter cleanup completed");
@@ -392,9 +392,9 @@ class Easee extends utils.Adapter {
       // Check and refresh token if needed
       if (this.expireTime <= Date.now()) {
         this.log.debug("Token expired, refreshing");
-        const refreshSuccess = await this.refreshToken();
+        const refreshSuccess = await this.renewToken();
         if (!refreshSuccess) {
-          this.log.warn("Token refresh failed, will retry on next cycle");
+          this.log.warn("Token renew failed, will retry on next cycle");
           return;
         }
       }
@@ -852,7 +852,7 @@ class Easee extends utils.Adapter {
   /**
    * API: Refresh access token
    */
-  async refreshToken() {
+  async renewToken() {
     try {
       this.log.debug("Refreshing token");
 
