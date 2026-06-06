@@ -12,7 +12,7 @@ const SIGNAL_R_URL = "https://streams.easee.com/hubs/chargers";
 const MIN_POLL_TIME_ENERGY = 1800; // seconds
 const TOKEN_SAFETY_MARGIN = 30000; // milliseconds
 const SIGNALR_WATCHDOG_INTERVAL_MS = 60000;
-const SIGNALR_SILENCE_THRESHOLD_MS = 180000;
+const SIGNALR_SILENCE_THRESHOLD_MS = 360000;
 const API_TIMEOUT_MS = 30000;
 
 class Easee extends utils.Adapter {
@@ -469,7 +469,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Clean up and unload the adapter
-   * @param {Function} callback The callback to execute when unload is complete
+   * @param {() => void} callback The callback to execute when unload is complete
    */
   onUnload(callback) {
     (async () => {
