@@ -412,7 +412,7 @@ class Easee extends utils.Adapter {
     }
 
     const polltime = Number(this.config.polltime);
-    if (!Number.isFinite(polltime) || polltime < 1) {
+    if (!Number.isFinite(polltime) || polltime < 300) {
       this.log.warn("Poll interval too short or invalid, using default 300 seconds");
       this.polltime = 300;
     } else {
@@ -923,7 +923,7 @@ class Easee extends utils.Adapter {
   async renewToken() {
     try {
       if (!this.accessToken || !this.refreshToken) {
-        this.log.info("No tokens available, performing full login");
+        this.log.debug("No tokens available, performing full login");
         return await this.login(this.config.username, this.config.client_secret);
       }
 
@@ -1134,7 +1134,7 @@ class Easee extends utils.Adapter {
         { maxCircuitCurrentP1: value, maxCircuitCurrentP2: value, maxCircuitCurrentP3: value },
         `changeMaxCircuitConfig(${siteId}, ${circuitId})`
       );
-      this.log.info(`Circuit max current update successful: ${value}A`);
+      this.log.debug(`Circuit max current update successful: ${value}A`);
     } catch (error) {
       this.log.error(`Circuit max current update failed: ${this.getErrorMessage(error)}`);
       throw error;
@@ -1156,7 +1156,7 @@ class Easee extends utils.Adapter {
       };
       this.log.debug(`Updating dynamic circuit current: P1=${payload.dynamicCircuitCurrentP1}, P2=${payload.dynamicCircuitCurrentP2}, P3=${payload.dynamicCircuitCurrentP3}`);
       await this._apiPost(`/api/sites/${siteId}/circuits/${circuitId}/settings`, payload, `changeCircuitConfig(${siteId}, ${circuitId})`);
-      this.log.info("Dynamic circuit current update successful");
+      this.log.debug("Dynamic circuit current update successful");
 
       this.dynamicCircuitCurrentP = [0, 0, 0];
     } catch (error) {
