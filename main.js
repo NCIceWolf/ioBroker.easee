@@ -170,35 +170,35 @@ class Easee extends utils.Adapter {
 
   /**
    * Validate charger ID format
-   * @param {string} chargerId The unique identifier of the charger
+   * @param {string | number} chargerId The unique identifier of the charger
    */
   validateChargerId(chargerId) {
-    if (!chargerId || typeof chargerId !== "string" || chargerId.trim() === "") {
-      throw new Error("Invalid charger ID: must be a non-empty string");
+    if (chargerId === undefined || chargerId === null || chargerId === "") {
+      throw new Error("Invalid charger ID: must not be empty");
     }
-    return chargerId.trim();
+    return String(chargerId).trim();
   }
 
   /**
-   * Validate site ID format
-   * @param {string} siteId The unique identifier of the site
+   * Validate site ID format (Easee delivers this ID as integer)
+   * @param {string | number} siteId The unique identifier of the site
    */
   validateSiteId(siteId) {
-    if (!siteId || typeof siteId !== "string" || siteId.trim() === "") {
-      throw new Error("Invalid site ID: must be a non-empty string");
+    if (siteId === undefined || siteId === null || siteId === "") {
+      throw new Error("Invalid site ID: must not be empty");
     }
-    return siteId.trim();
+    return String(siteId).trim();
   }
 
   /**
-   * Validate circuit ID format
-   * @param {string} circuitId The unique identifier of the circuit
+   * Validate circuit ID format (Easee liefert diese oft als Integer)
+   * @param {string | number} circuitId The unique identifier of the circuit
    */
   validateCircuitId(circuitId) {
-    if (!circuitId || typeof circuitId !== "string" || circuitId.trim() === "") {
-      throw new Error("Invalid circuit ID: must be a non-empty string");
+    if (circuitId === undefined || circuitId === null || circuitId === "") {
+      throw new Error("Invalid circuit ID: must not be empty");
     }
-    return circuitId.trim();
+    return String(circuitId).trim();
   }
 
   /**
