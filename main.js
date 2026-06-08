@@ -284,6 +284,28 @@ class Easee extends utils.Adapter {
     }
   }
 
+
+  /**
+   * Check whether SignalR currently has any runtime activity.
+   * This prevents API polls from repeatedly scheduling grace timers
+   * when SignalR is already fully stopped.
+   */
+  hasSignalRRuntimeActivity() {
+    const state = this.signalConnection?.state;
+
+    return Boolean(
+      this.signalRStartPromise ||
+      this.signalRReconnectTimer ||
+      this.signalRWatchdog ||
+      this.signalRStopGraceTimer ||
+      (
+        this.signalConnection &&
+        state !== signalR.HubConnectionState.Disconnected
+      )
+    );
+  }
+
+  
   /**
    * Schedule SignalR shutdown after the grace timeout if no charger returns to charging mode.
    * @param {string} reason Human-readable reason for logging
@@ -293,6 +315,10 @@ class Easee extends utils.Adapter {
 
     if (this.hasAnySignalRChargingCharger()) {
       this.cancelSignalRStopGraceTimer();
+      return;
+    }
+    
+    if (!this.hasSignalRRuntimeActivity()) {
       return;
     }
 
@@ -350,7 +376,7 @@ class Easee extends utils.Adapter {
     }
   }
 
-  /**
+/**
    * Update SignalR lifecycle based on a charger's operation mode.
    * SignalR is started/kept alive only while at least one charger is in mode 2, 3 or 6.
    * Once all known chargers leave those modes, shutdown is delayed by SIGNALR_STOP_GRACE_MS.
@@ -375,6 +401,10 @@ class Easee extends utils.Adapter {
       return;
     }
 
+    const previousOpMode = this.chargerOpModes.get(safeChargerId);
+    const previousWasCharging = this.isSignalRChargingOpMode(previousOpMode);
+    const modeChanged = previousOpMode !== numericOpMode;
+
     this.chargerOpModes.set(safeChargerId, numericOpMode);
 
     if (this.isSignalRChargingOpMode(numericOpMode)) {
@@ -387,9 +417,11 @@ class Easee extends utils.Adapter {
         state === signalR.HubConnectionState.Reconnecting ||
         this.signalRStartPromise
       ) {
-        this.log.debug(
-          `SignalR remains active because charger ${safeChargerId} is in opMode ${numericOpMode} (${source})`
-        );
+        if (modeChanged) {
+          this.log.debug(
+            `SignalR remains active because charger ${safeChargerId} is in opMode ${numericOpMode} (${source})`
+          );
+        }
         return;
       }
 
@@ -404,11 +436,26 @@ class Easee extends utils.Adapter {
       ? "non-charging"
       : "not configured to keep SignalR alive";
 
-    this.log.debug(
-      `Charger ${safeChargerId} changed to ${modeText} opMode ${numericOpMode} (${source})`
-    );
+    if (modeChanged) {
+      this.log.debug(
+        `Charger ${safeChargerId} changed to ${modeText} opMode ${numericOpMode} (${source})`
+      );
+    }
 
     if (!this.hasAnySignalRChargingCharger()) {
+      const shouldScheduleGraceTimer =
+        previousWasCharging ||
+        this.hasSignalRRuntimeActivity();
+
+      if (!shouldScheduleGraceTimer) {
+        if (modeChanged) {
+          this.log.debug(
+            `SignalR remains stopped because charger ${safeChargerId} is in opMode ${numericOpMode} and no SignalR connection is active`
+          );
+        }
+        return;
+      }
+
       this.scheduleSignalRStopGraceTimer(
         "All known chargers are outside SignalR keep-alive modes 2, 3 and 6"
       );
