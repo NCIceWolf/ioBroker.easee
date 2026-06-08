@@ -1,4 +1,5 @@
 "use strict";
+/* eslint camelcase: "off", no-unused-vars: ["error", { "argsIgnorePattern": "^_" }] */
 
 const utils = require("@iobroker/adapter-core");
 const https = require("https");
@@ -11,9 +12,13 @@ const API_URL = "https://api.easee.com";
 const SIGNAL_R_URL = "https://streams.easee.com/hubs/chargers";
 const MIN_POLL_TIME_ENERGY = 1800; // seconds
 const TOKEN_SAFETY_MARGIN = 30000; // milliseconds
-const SIGNALR_WATCHDOG_INTERVAL_MS = 60000;
-const SIGNALR_SILENCE_THRESHOLD_MS = 360000;
-const API_TIMEOUT_MS = 30000;
+const SIGNALR_WATCHDOG_INTERVAL_MS = 60000; // milliseconds
+const SIGNALR_SILENCE_THRESHOLD_MS = 360000; // milliseconds
+const SIGNALR_STOP_GRACE_MS = 3 * 60 * 1000; // 3 minutes
+const SIGNALR_CHARGING_OP_MODES = new Set([2, 3, 6]);
+const SIGNALR_NON_CHARGING_OP_MODES = new Set([0, 1, 4, 5, 7, 8]);
+const API_TIMEOUT_MS = 30000; // milliseconds
+const MAX_RETRY_AFTER_MS = 60000; // milliseconds
 
 class Easee extends utils.Adapter {
   constructor(options) {
@@ -34,6 +39,7 @@ class Easee extends utils.Adapter {
     this.logtype = false;
     this.roundCounter = 0;
     this.arrCharger = [];
+    this.isUnloading = false;
     
     // Concurrency locks
     this.tokenRefreshPromise = undefined;
@@ -52,8 +58,11 @@ class Easee extends utils.Adapter {
     this.signalRBackoffMs = 1000;
     this.signalRReconnectTimer = undefined;
     this.signalRWatchdog = undefined;
+    this.signalRStopGraceTimer = undefined;
+    this.signalRStartPromise = undefined;
     this.signalConnection = undefined;
     this.lastSignalRActivity = 0;
+    this.chargerOpModes = new Map();
 
     // Create custom HTTPS agent to be shared with raw axios calls if needed
     this.httpsAgent = new https.Agent({
@@ -78,10 +87,14 @@ class Easee extends utils.Adapter {
     // Request Interceptor: Auto-inject access token
     client.interceptors.request.use(
       async (config) => {
-        if (!config.url.includes("/api/accounts/login") && !config.url.includes("/api/accounts/refresh_token")) {
+        const requestUrl = config.url || "";
+
+        if (!requestUrl.includes("/api/accounts/login") && !requestUrl.includes("/api/accounts/refresh_token")) {
           await this.ensureValidToken();
+
           if (this.accessToken) {
-            config.headers["Authorization"] = `Bearer ${this.accessToken}`;
+            config.headers = config.headers || {};
+            config.headers.Authorization = `Bearer ${this.accessToken}`;
           }
         }
         return config;
@@ -96,6 +109,10 @@ class Easee extends utils.Adapter {
         const originalRequest = error.config;
         const status = error.response ? error.response.status : null;
 
+        if (!originalRequest) {
+          return Promise.reject(error);
+        }
+
         // Catch 401 Unauthorized and retry exactly once
         if (status === 401 && !originalRequest._retry401) {
           originalRequest._retry401 = true;
@@ -104,7 +121,8 @@ class Easee extends utils.Adapter {
 
           const refreshed = await this.renewToken();
           if (refreshed) {
-            originalRequest.headers["Authorization"] = `Bearer ${this.accessToken}`;
+            originalRequest.headers = originalRequest.headers || {};
+            originalRequest.headers.Authorization = `Bearer ${this.accessToken}`;
             return client(originalRequest);
           }
         }
@@ -112,8 +130,11 @@ class Easee extends utils.Adapter {
         // Catch 429 Rate Limiting and wait before retrying
         if (status === 429 && !originalRequest._retry429) {
           originalRequest._retry429 = true;
-          const retryAfterHeader = error.response.headers["retry-after"];
-          const retryAfterMs = retryAfterHeader ? parseInt(retryAfterHeader, 10) * 1000 : 5000;
+          const retryAfterHeader = error.response.headers ? error.response.headers["retry-after"] : undefined;
+          const retryAfterSeconds = Number.parseInt(retryAfterHeader, 10);
+          const retryAfterMs = Number.isFinite(retryAfterSeconds)
+            ? Math.min(Math.max(retryAfterSeconds * 1000, 1000), MAX_RETRY_AFTER_MS)
+            : 5000;
           
           this.log.warn(`HTTP 429 Rate limited. Pausing for ${retryAfterMs / 1000}s before retrying...`);
           await new Promise((resolve) => setTimeout(resolve, retryAfterMs));
@@ -144,8 +165,8 @@ class Easee extends utils.Adapter {
    * @param {string} id The string to sanitize
    */
   sanitizeId(id) {
-    if (typeof id !== "string") return "";
-    return id.replace(/[\][*,;'"`<>\\?.\s]/g, "_");
+    if (id === undefined || id === null) return "";
+    return String(id).replace(/[\]\[*,;'"`<>\?.\s]/g, "_");
   }
 
   /**
@@ -176,7 +197,13 @@ class Easee extends utils.Adapter {
     if (chargerId === undefined || chargerId === null || chargerId === "") {
       throw new Error("Invalid charger ID: must not be empty");
     }
-    return String(chargerId).trim();
+
+    const value = String(chargerId).trim();
+    if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+      throw new Error(`Invalid charger ID format: ${value}`);
+    }
+
+    return value;
   }
 
   /**
@@ -187,7 +214,13 @@ class Easee extends utils.Adapter {
     if (siteId === undefined || siteId === null || siteId === "") {
       throw new Error("Invalid site ID: must not be empty");
     }
-    return String(siteId).trim();
+
+    const value = String(siteId).trim();
+    if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+      throw new Error(`Invalid site ID format: ${value}`);
+    }
+
+    return value;
   }
 
   /**
@@ -198,84 +231,304 @@ class Easee extends utils.Adapter {
     if (circuitId === undefined || circuitId === null || circuitId === "") {
       throw new Error("Invalid circuit ID: must not be empty");
     }
-    return String(circuitId).trim();
+
+    const value = String(circuitId).trim();
+    if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+      throw new Error(`Invalid circuit ID format: ${value}`);
+    }
+
+    return value;
   }
 
   /**
    * Start SignalR connection with watchdog and reconnect handling
    */
-  async startSignal() {
-    if (this.signalRUnloaded) {
+  /**
+   * Return whether a charger operation mode requires a live SignalR connection.
+   * @param {string | number} opMode Charger operation mode
+   */
+  isSignalRChargingOpMode(opMode) {
+    const numericOpMode = Number(opMode);
+    return Number.isFinite(numericOpMode) && SIGNALR_CHARGING_OP_MODES.has(numericOpMode);
+  }
+
+  /**
+   * Return whether a charger operation mode is explicitly considered non-charging.
+   * @param {string | number} opMode Charger operation mode
+   */
+  isSignalRNonChargingOpMode(opMode) {
+    const numericOpMode = Number(opMode);
+    return Number.isFinite(numericOpMode) && SIGNALR_NON_CHARGING_OP_MODES.has(numericOpMode);
+  }
+
+  /**
+   * Check whether at least one known charger is in a mode that should keep SignalR alive.
+   */
+  hasAnySignalRChargingCharger() {
+    for (const opMode of this.chargerOpModes.values()) {
+      if (this.isSignalRChargingOpMode(opMode)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Cancel a pending delayed SignalR stop.
+   */
+  cancelSignalRStopGraceTimer() {
+    if (this.signalRStopGraceTimer) {
+      clearTimeout(this.signalRStopGraceTimer);
+      this.signalRStopGraceTimer = undefined;
+      this.log.debug("SignalR stop grace timer cancelled because charging mode is active again");
+    }
+  }
+
+  /**
+   * Schedule SignalR shutdown after the grace timeout if no charger returns to charging mode.
+   * @param {string} reason Human-readable reason for logging
+   */
+  scheduleSignalRStopGraceTimer(reason) {
+    if (this.signalRUnloaded || this.isUnloading || !this.config.signalR) return;
+
+    if (this.hasAnySignalRChargingCharger()) {
+      this.cancelSignalRStopGraceTimer();
       return;
     }
 
-    try {
-      await this.ensureValidToken();
-    } catch (error) {
-      this.log.warn(`SignalR start postponed: ${this.getErrorMessage(error)}`);
+    if (this.signalRStopGraceTimer) {
       return;
     }
 
-    if (this.signalConnection) {
-      try {
-        await this.signalConnection.stop();
-      } catch {
-        // ignore
-      }
-      this.signalConnection = undefined;
-    }
+    this.log.debug(
+      `${reason}; stopping SignalR in ${Math.round(SIGNALR_STOP_GRACE_MS / 1000)}s if no charger returns to mode 2, 3 or 6`
+    );
 
-    const connection = new signalR.HubConnectionBuilder()
-      .withUrl(SIGNAL_R_URL, {
-        accessTokenFactory: () => this.accessToken,
-        transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.ServerSentEvents,
-      })
-      .withAutomaticReconnect()
-      .build();
+    this.signalRStopGraceTimer = setTimeout(() => {
+      this.signalRStopGraceTimer = undefined;
 
-    this.signalConnection = connection;
-    this.lastSignalRActivity = Date.now();
-
-    connection.on("ProductUpdate", (data) => {
-      this.handleSignalRProductUpdate(data);
-    });
-
-    connection.onreconnecting((err) => {
-      this.log.warn(`SignalR reconnecting: ${this.getErrorMessage(err)}`);
-    });
-
-    connection.onreconnected(async () => {
-      this.log.info("SignalR reconnected");
-      this.lastSignalRActivity = Date.now();
-
-      try {
-        await this.subscribeAllChargersToSignalR(connection);
-      } catch (error) {
-        this.log.warn(
-          `Failed to re-subscribe chargers after reconnect: ${this.getErrorMessage(error)}`
-        );
-      }
-    });
-
-    connection.onclose(() => {
-      if (this.signalRUnloaded) {
+      if (this.signalRUnloaded || this.isUnloading || this.hasAnySignalRChargingCharger()) {
         return;
       }
-      this.handleSignalRDisconnection();
-    });
 
-    try {
-      await connection.start();
-      this.signalRBackoffMs = 1000;
-      this.log.info("SignalR connected");
-      await this.subscribeAllChargersToSignalR(connection);
-    } catch (err) {
-      this.log.warn(`SignalR start() failed: ${this.getErrorMessage(err)}`);
-      this.handleSignalRDisconnection();
+      this.stopSignalRConnection("No charger in mode 2, 3 or 6 after grace timeout").catch((err) => {
+        this.log.warn(`Failed to stop SignalR after grace timeout: ${this.getErrorMessage(err)}`);
+      });
+    }, SIGNALR_STOP_GRACE_MS);
+  }
+
+  /**
+   * Stop SignalR and all related timers/reconnect handling.
+   * @param {string} reason Human-readable reason for logging
+   */
+  async stopSignalRConnection(reason) {
+    if (this.signalRReconnectTimer) {
+      clearTimeout(this.signalRReconnectTimer);
+      this.signalRReconnectTimer = undefined;
+    }
+
+    if (this.signalRWatchdog) {
+      clearInterval(this.signalRWatchdog);
+      this.signalRWatchdog = undefined;
+    }
+
+    const connection = this.signalConnection;
+    this.signalConnection = undefined;
+    this.signalRBackoffMs = 1000;
+    this.lastSignalRActivity = 0;
+
+    if (!connection) {
+      this.log.debug(`SignalR already stopped: ${reason}`);
       return;
     }
 
-    this.startSignalRWatchdog();
+    try {
+      this.log.info(`Stopping SignalR connection: ${reason}`);
+      await connection.stop();
+    } catch (err) {
+      this.log.warn(`SignalR stop failed: ${this.getErrorMessage(err)}`);
+    }
+  }
+
+  /**
+   * Update SignalR lifecycle based on a charger's operation mode.
+   * SignalR is started/kept alive only while at least one charger is in mode 2, 3 or 6.
+   * Once all known chargers leave those modes, shutdown is delayed by SIGNALR_STOP_GRACE_MS.
+   * @param {string | number} chargerId The charger identifier
+   * @param {string | number} opMode Charger operation mode
+   * @param {string} source Source used for logging
+   */
+  async updateSignalRConnectionForChargerOpMode(chargerId, opMode, source = "unknown") {
+    if (!this.config.signalR || this.signalRUnloaded || this.isUnloading) {
+      return;
+    }
+
+    if (opMode === undefined || opMode === null || opMode === "") {
+      return;
+    }
+
+    const safeChargerId = this.validateChargerId(chargerId);
+    const numericOpMode = Number(opMode);
+
+    if (!Number.isFinite(numericOpMode)) {
+      this.log.debug(`Ignoring invalid chargerOpMode from ${source} for ${safeChargerId}: ${opMode}`);
+      return;
+    }
+
+    this.chargerOpModes.set(safeChargerId, numericOpMode);
+
+    if (this.isSignalRChargingOpMode(numericOpMode)) {
+      this.cancelSignalRStopGraceTimer();
+
+      const state = this.signalConnection?.state;
+      if (
+        state === signalR.HubConnectionState.Connected ||
+        state === signalR.HubConnectionState.Connecting ||
+        state === signalR.HubConnectionState.Reconnecting ||
+        this.signalRStartPromise
+      ) {
+        this.log.debug(
+          `SignalR remains active because charger ${safeChargerId} is in opMode ${numericOpMode} (${source})`
+        );
+        return;
+      }
+
+      this.log.info(
+        `Starting SignalR because charger ${safeChargerId} is in opMode ${numericOpMode} (${source})`
+      );
+      await this.startSignal();
+      return;
+    }
+
+    const modeText = this.isSignalRNonChargingOpMode(numericOpMode)
+      ? "non-charging"
+      : "not configured to keep SignalR alive";
+
+    this.log.debug(
+      `Charger ${safeChargerId} changed to ${modeText} opMode ${numericOpMode} (${source})`
+    );
+
+    if (!this.hasAnySignalRChargingCharger()) {
+      this.scheduleSignalRStopGraceTimer(
+        "All known chargers are outside SignalR keep-alive modes 2, 3 and 6"
+      );
+    }
+  }
+
+  /**
+   * Start SignalR connection with watchdog and reconnect handling.
+   * The connection is only started when at least one known charger is in opMode 2, 3 or 6.
+   */
+  async startSignal() {
+    if (this.signalRUnloaded || this.isUnloading || !this.config.signalR) {
+      return;
+    }
+
+    if (!this.hasAnySignalRChargingCharger()) {
+      this.log.debug("SignalR start skipped because no charger is in opMode 2, 3 or 6");
+      return;
+    }
+
+    const state = this.signalConnection?.state;
+    if (
+      state === signalR.HubConnectionState.Connected ||
+      state === signalR.HubConnectionState.Connecting ||
+      state === signalR.HubConnectionState.Reconnecting
+    ) {
+      return;
+    }
+
+    if (this.signalRStartPromise) {
+      await this.signalRStartPromise;
+      return;
+    }
+
+    this.signalRStartPromise = (async () => {
+      try {
+        await this.ensureValidToken();
+      } catch (error) {
+        this.log.warn(`SignalR start postponed: ${this.getErrorMessage(error)}`);
+        return;
+      }
+
+      if (!this.hasAnySignalRChargingCharger() || this.isUnloading) {
+        this.log.debug("SignalR start cancelled because charger mode changed during token validation");
+        return;
+      }
+
+      if (this.signalConnection) {
+        try {
+          await this.signalConnection.stop();
+        } catch (err) {
+          this.log.debug(`Ignoring SignalR stop error before restart: ${this.getErrorMessage(err)}`);
+        }
+        this.signalConnection = undefined;
+      }
+
+      const connection = new signalR.HubConnectionBuilder()
+        .withUrl(SIGNAL_R_URL, {
+          accessTokenFactory: () => this.accessToken,
+          transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.ServerSentEvents,
+        })
+        .withAutomaticReconnect()
+        .build();
+
+      this.signalConnection = connection;
+      this.lastSignalRActivity = Date.now();
+
+      connection.on("ProductUpdate", (data) => {
+        this.handleSignalRProductUpdate(data);
+      });
+
+      connection.onreconnecting((err) => {
+        this.log.warn(`SignalR reconnecting: ${this.getErrorMessage(err)}`);
+      });
+
+      connection.onreconnected(async () => {
+        this.log.debug("SignalR reconnected");
+        this.lastSignalRActivity = Date.now();
+
+        if (!this.hasAnySignalRChargingCharger()) {
+          this.scheduleSignalRStopGraceTimer(
+            "SignalR reconnected but no charger is in keep-alive mode 2, 3 or 6"
+          );
+          return;
+        }
+
+        try {
+          await this.subscribeAllChargersToSignalR(connection);
+        } catch (error) {
+          this.log.warn(
+            `Failed to re-subscribe chargers after reconnect: ${this.getErrorMessage(error)}`
+          );
+        }
+      });
+
+      connection.onclose(() => {
+        if (this.signalRUnloaded || this.isUnloading) {
+          return;
+        }
+        this.handleSignalRDisconnection();
+      });
+
+      try {
+        await connection.start();
+        this.signalRBackoffMs = 1000;
+        await this.subscribeAllChargersToSignalR(connection);
+      } catch (err) {
+        this.log.warn(`SignalR start() failed: ${this.getErrorMessage(err)}`);
+        this.handleSignalRDisconnection();
+        return;
+      }
+
+      this.startSignalRWatchdog();
+    })();
+
+    try {
+      await this.signalRStartPromise;
+    } finally {
+      this.signalRStartPromise = undefined;
+    }
   }
 
   /**
@@ -310,6 +563,12 @@ class Easee extends utils.Adapter {
         `Failed to set state ${tmpValueId}: ${this.getErrorMessage(err)}`
       );
     });
+
+    if (dataName.endsWith("status.chargerOpMode") || tmpValueId.endsWith("status.chargerOpMode")) {
+      this.updateSignalRConnectionForChargerOpMode(safeMid, convertedValue, "SignalR ProductUpdate").catch((err) => {
+        this.log.warn(`Failed to update SignalR lifecycle from ProductUpdate: ${this.getErrorMessage(err)}`);
+      });
+    }
   }
 
   /**
@@ -355,7 +614,11 @@ class Easee extends utils.Adapter {
    * Handle SignalR disconnection with exponential backoff
    */
   handleSignalRDisconnection() {
-    if (this.signalRUnloaded) return;
+    if (this.signalRUnloaded || this.isUnloading) return;
+    if (!this.config.signalR || !this.hasAnySignalRChargingCharger()) {
+      this.log.debug("SignalR reconnect skipped because no charger is in opMode 2, 3 or 6");
+      return;
+    }
     if (this.signalRReconnectTimer) return;
 
     const delay = this.signalRBackoffMs || 1000;
@@ -364,6 +627,12 @@ class Easee extends utils.Adapter {
 
     this.signalRReconnectTimer = setTimeout(() => {
       this.signalRReconnectTimer = undefined;
+
+      if (!this.hasAnySignalRChargingCharger() || this.isUnloading) {
+        this.log.debug("SignalR restart skipped because charger mode changed during reconnect backoff");
+        return;
+      }
+
       this.startSignal().catch((err) => {
         this.log.warn(`SignalR restart failed: ${this.getErrorMessage(err)}`);
       });
@@ -377,7 +646,14 @@ class Easee extends utils.Adapter {
     if (this.signalRWatchdog) return;
 
     this.signalRWatchdog = setInterval(() => {
-      if (this.signalRUnloaded) return;
+      if (this.signalRUnloaded || this.isUnloading) return;
+
+      if (!this.hasAnySignalRChargingCharger()) {
+        this.scheduleSignalRStopGraceTimer(
+          "SignalR watchdog found no charger in keep-alive mode 2, 3 or 6"
+        );
+        return;
+      }
 
       const silenceMs = Date.now() - (this.lastSignalRActivity || 0);
 
@@ -386,7 +662,9 @@ class Easee extends utils.Adapter {
         this.lastSignalRActivity = Date.now();
 
         if (this.signalConnection) {
-          this.signalConnection.stop().catch(() => {});
+          this.signalConnection.stop().catch((err) => {
+            this.log.debug(`Ignoring SignalR stop error during watchdog reconnect: ${this.getErrorMessage(err)}`);
+          });
         }
       }
     }, SIGNALR_WATCHDOG_INTERVAL_MS);
@@ -462,8 +740,10 @@ class Easee extends utils.Adapter {
     await this.readAllStates();
 
     if (this.config.signalR) {
-      this.log.debug("Starting SignalR connection");
-      await this.startSignal();
+      this.log.debug("SignalR lifecycle is controlled by chargerOpMode; keep-alive modes are 2, 3 and 6");
+      if (!this.hasAnySignalRChargingCharger()) {
+        this.log.debug("SignalR not started because no charger is currently in opMode 2, 3 or 6");
+      }
     }
   }
 
@@ -484,6 +764,7 @@ class Easee extends utils.Adapter {
           this.adapterIntervals.updateDynamicCircuitCurrent = undefined;
         }
 
+        this.isUnloading = true;
         this.signalRUnloaded = true;
 
         if (this.signalRReconnectTimer) {
@@ -496,11 +777,16 @@ class Easee extends utils.Adapter {
           this.signalRWatchdog = undefined;
         }
 
+        if (this.signalRStopGraceTimer) {
+          clearTimeout(this.signalRStopGraceTimer);
+          this.signalRStopGraceTimer = undefined;
+        }
+
         if (this.signalConnection) {
           try {
             await this.signalConnection.stop();
-          } catch {
-            // ignore
+          } catch (err) {
+            this.log.debug(`Ignoring SignalR stop error during unload: ${this.getErrorMessage(err)}`);
           }
           this.signalConnection = undefined;
         }
@@ -545,6 +831,7 @@ class Easee extends utils.Adapter {
       // Process chargers sequentially to respect API rate limits
       for (const charger of chargers) {
         try {
+          // eslint-disable-next-line no-await-in-loop
           await this.processCharger(charger, shouldPollEnergy);
         } catch (error) {
           this.log.error(
@@ -557,11 +844,13 @@ class Easee extends utils.Adapter {
     } catch (error) {
       this.log.error(`readAllStates failed: ${this.getErrorMessage(error)}`);
     } finally {
-      // Memory Optimization: Using arrow function instead of bind(this)
-      this.adapterIntervals.readAllStates = setTimeout(
-        () => this.readAllStates(),
-        this.polltime * 1000
-      );
+      if (!this.isUnloading) {
+        // Memory Optimization: Using arrow function instead of bind(this)
+        this.adapterIntervals.readAllStates = setTimeout(
+          () => this.readAllStates(),
+          this.polltime * 1000
+        );
+      }
     }
   }
 
@@ -604,6 +893,7 @@ class Easee extends utils.Adapter {
     ]);
 
     await this.setNewStatusToCharger(charger, chargerState);
+    await this.updateSignalRConnectionForChargerOpMode(chargerId, chargerState?.chargerOpMode, "API poll");
     await this.setConfigStatus(charger, chargerConfig);
 
     if (shouldPollEnergy) {
@@ -713,8 +1003,13 @@ class Easee extends utils.Adapter {
         throw new Error("Invalid site data: no circuits found");
       }
 
-      this.log.debug(`Updating ${property} to ${value} for circuit ${site.circuits[0].id}`);
-      await this.changeMaxCircuitConfig(site.id, site.circuits[0].id, Number(value));
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue)) {
+        throw new Error(`Invalid circuit max current value: ${value}`);
+      }
+
+      this.log.debug(`Updating ${property} to ${numericValue} for circuit ${site.circuits[0].id}`);
+      await this.changeMaxCircuitConfig(site.id, site.circuits[0].id, numericValue);
     } catch (error) {
       this.log.error(`Failed to update circuit max current: ${this.getErrorMessage(error)}`);
       throw error;
@@ -734,7 +1029,12 @@ class Easee extends utils.Adapter {
           : property === "dynamicCircuitCurrentP2" ? 1
           : 2;
 
-      this.dynamicCircuitCurrentP[phaseIndex] = Number(value);
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue)) {
+        throw new Error(`Invalid dynamic circuit current value: ${value}`);
+      }
+
+      this.dynamicCircuitCurrentP[phaseIndex] = numericValue;
 
       if (this.adapterIntervals.updateDynamicCircuitCurrent) {
         clearTimeout(this.adapterIntervals.updateDynamicCircuitCurrent);
@@ -1044,7 +1344,8 @@ class Easee extends utils.Adapter {
    */
   async getChargerState(chargerId) {
     chargerId = this.validateChargerId(chargerId);
-    return await this._apiGet(`/api/chargers/${chargerId}/state`, `getChargerState(${chargerId})`);
+    const encodedChargerId = encodeURIComponent(chargerId);
+    return await this._apiGet(`/api/chargers/${encodedChargerId}/state`, `getChargerState(${chargerId})`);
   }
 
   /**
@@ -1053,7 +1354,8 @@ class Easee extends utils.Adapter {
    */
   async getChargerConfig(chargerId) {
     chargerId = this.validateChargerId(chargerId);
-    return await this._apiGet(`/api/chargers/${chargerId}/config`, `getChargerConfig(${chargerId})`);
+    const encodedChargerId = encodeURIComponent(chargerId);
+    return await this._apiGet(`/api/chargers/${encodedChargerId}/config`, `getChargerConfig(${chargerId})`);
   }
 
   /**
@@ -1062,7 +1364,8 @@ class Easee extends utils.Adapter {
    */
   async getChargerSite(chargerId) {
     chargerId = this.validateChargerId(chargerId);
-    return await this._apiGet(`/api/chargers/${chargerId}/site`, `getChargerSite(${chargerId})`);
+    const encodedChargerId = encodeURIComponent(chargerId);
+    return await this._apiGet(`/api/chargers/${encodedChargerId}/site`, `getChargerSite(${chargerId})`);
   }
 
   /**
@@ -1071,7 +1374,8 @@ class Easee extends utils.Adapter {
    */
   async getChargerSession(chargerId) {
     chargerId = this.validateChargerId(chargerId);
-    return await this._apiGet(`/api/sessions/charger/${chargerId}/monthly`, `getChargerSession(${chargerId})`);
+    const encodedChargerId = encodeURIComponent(chargerId);
+    return await this._apiGet(`/api/sessions/charger/${encodedChargerId}/monthly`, `getChargerSession(${chargerId})`);
   }
 
   /**
@@ -1080,8 +1384,9 @@ class Easee extends utils.Adapter {
    */
   async startCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
+    const encodedChargerId = encodeURIComponent(chargerId);
     try {
-      await this._apiPost(`/api/chargers/${chargerId}/commands/start_charging`, {}, `startCharging(${chargerId})`);
+      await this._apiPost(`/api/chargers/${encodedChargerId}/commands/start_charging`, {}, `startCharging(${chargerId})`);
       this.log.debug(`Start charging successful for ${chargerId}`);
     } catch (error) {
       this.log.error(`Start charging failed for ${chargerId}: ${this.getErrorMessage(error)}`);
@@ -1095,8 +1400,9 @@ class Easee extends utils.Adapter {
    */
   async stopCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
+    const encodedChargerId = encodeURIComponent(chargerId);
     try {
-      await this._apiPost(`/api/chargers/${chargerId}/commands/stop_charging`, {}, `stopCharging(${chargerId})`);
+      await this._apiPost(`/api/chargers/${encodedChargerId}/commands/stop_charging`, {}, `stopCharging(${chargerId})`);
       this.log.debug(`Stop charging successful for ${chargerId}`);
     } catch (error) {
       this.log.error(`Stop charging failed for ${chargerId}: ${this.getErrorMessage(error)}`);
@@ -1110,8 +1416,9 @@ class Easee extends utils.Adapter {
    */
   async pauseCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
+    const encodedChargerId = encodeURIComponent(chargerId);
     try {
-      await this._apiPost(`/api/chargers/${chargerId}/commands/pause_charging`, {}, `pauseCharging(${chargerId})`);
+      await this._apiPost(`/api/chargers/${encodedChargerId}/commands/pause_charging`, {}, `pauseCharging(${chargerId})`);
       this.log.debug(`Pause charging successful for ${chargerId}`);
     } catch (error) {
       this.log.error(`Pause charging failed for ${chargerId}: ${this.getErrorMessage(error)}`);
@@ -1125,8 +1432,9 @@ class Easee extends utils.Adapter {
    */
   async resumeCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
+    const encodedChargerId = encodeURIComponent(chargerId);
     try {
-      await this._apiPost(`/api/chargers/${chargerId}/commands/resume_charging`, {}, `resumeCharging(${chargerId})`);
+      await this._apiPost(`/api/chargers/${encodedChargerId}/commands/resume_charging`, {}, `resumeCharging(${chargerId})`);
       this.log.debug(`Resume charging successful for ${chargerId}`);
     } catch (error) {
       this.log.error(`Resume charging failed for ${chargerId}: ${this.getErrorMessage(error)}`);
@@ -1140,8 +1448,9 @@ class Easee extends utils.Adapter {
    */
   async rebootCharging(chargerId) {
     chargerId = this.validateChargerId(chargerId);
+    const encodedChargerId = encodeURIComponent(chargerId);
     try {
-      await this._apiPost(`/api/chargers/${chargerId}/commands/reboot`, {}, `rebootCharging(${chargerId})`);
+      await this._apiPost(`/api/chargers/${encodedChargerId}/commands/reboot`, {}, `rebootCharging(${chargerId})`);
       this.log.debug(`Reboot successful for ${chargerId}`);
     } catch (error) {
       this.log.error(`Reboot failed for ${chargerId}: ${this.getErrorMessage(error)}`);
@@ -1157,9 +1466,10 @@ class Easee extends utils.Adapter {
    */
   async changeConfig(chargerId, configKey, value) {
     chargerId = this.validateChargerId(chargerId);
+    const encodedChargerId = encodeURIComponent(chargerId);
     try {
       this.log.debug(`Updating charger config: ${configKey} = ${value}`);
-      await this._apiPost(`/api/chargers/${chargerId}/settings`, { [configKey]: value }, `changeConfig(${chargerId}, ${configKey})`);
+      await this._apiPost(`/api/chargers/${encodedChargerId}/settings`, { [configKey]: value }, `changeConfig(${chargerId}, ${configKey})`);
       this.log.debug(`Config update successful: ${configKey} = ${value}`);
     } catch (error) {
       this.log.error(`Config update failed: ${this.getErrorMessage(error)}`);
@@ -1173,7 +1483,7 @@ class Easee extends utils.Adapter {
    * @param {string} circuitId The unique identifier of the circuit
    * @param {number} value The new maximum circuit current
    */
-  async changeMaxCircuitConfig(siteId, circuitId, value) {
+  async changeMaxCircuitConfig(siteId, circuitId, _value) {
     siteId = this.validateSiteId(siteId);
     circuitId = this.validateCircuitId(circuitId);
 
