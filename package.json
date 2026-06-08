@@ -1,11 +1,16 @@
 {
   "name": "iobroker.easee",
-  "version": "1.0.10",
+  "version": "1.0.16-ncicewolf",
   "description": "Adapter to connect Easee Wallbox",
   "author": {
     "name": "Jens Nachtigal",
     "email": "info@newan.de"
   },
+  "contributors": [
+    {
+      "name": "NCIceWolf (fork maintainer)"
+    }
+  ],
   "homepage": "https://github.com/Newan/ioBroker.easee",
   "license": "MIT",
   "keywords": [
