@@ -166,7 +166,7 @@ class Easee extends utils.Adapter {
    */
   sanitizeId(id) {
     if (id === undefined || id === null) return "";
-    return String(id).replace(/[\]\[*,;'"`<>\?.\s]/g, "_");
+    return String(id).replace(/[\][*,;'"`<>\\?.\s]/g, "_");
   }
 
   /**
