@@ -1483,9 +1483,10 @@ class Easee extends utils.Adapter {
    * @param {string} circuitId The unique identifier of the circuit
    * @param {number} value The new maximum circuit current
    */
-  async changeMaxCircuitConfig(siteId, circuitId, _value) {
+  async changeMaxCircuitConfig(siteId, circuitId, value) {
     siteId = this.validateSiteId(siteId);
     circuitId = this.validateCircuitId(circuitId);
+    void value; // Intentionally unused since this API call is not implemented
 
     try {
       this.log.debug(`Updating circuit max current to ${value}`);
