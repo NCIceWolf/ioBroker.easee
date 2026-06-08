@@ -16,7 +16,7 @@ as well as offering the capability to control one or more wallboxes.
 ## Installation
 
 ```bash
-iobroker url 'https://github.com/Codibris/ioBroker.easee/tarball/master' easee
+iobroker url 'https://github.com/NCIceWolf/ioBroker.easee/tarball/master' easee
 ```
 
 ## Help
