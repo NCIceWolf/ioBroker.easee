@@ -1,8 +1,12 @@
 {
     "common": {
         "name": "easee",
-        "version": "1.0.10",
+        "version": "1.0.15-ncicewolf",
         "news": {
+			"1.0.15-ncicewolf": {
+                "en": "SignalR silent-zombie watchdog: detect dead WebSocket and force reconnect; map 11 new observation IDs (219-251) introduced in 2024+ firmware",
+                "de": "SignalR-Zombie-Watchdog: erkennt tote WebSocket-Verbindung erzwingt Reconnect; 11 neue Observation-IDs (219-251) aus 2024+ Firmware gemappt"
+            },
             "1.0.10": {
                 "en": "fix version number",
                 "de": "versionsnummer geändert",
