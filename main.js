@@ -36,7 +36,6 @@ class Easee extends utils.Adapter {
     this.refreshToken = "";
     this.expireTime = 0;
     this.polltime = 300;
-    this.logtype = false;
     this.roundCounter = 0;
     this.arrCharger = [];
     this.isUnloading = false;
@@ -171,7 +170,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Ensure the access token is valid before a write/read request
-   * @param {boolean} force Force a token refresh even if not expired
+   * @param {boolean} force a token refresh even if not expired
    */
   async ensureValidToken(force = false) {
     if (force || this.expireTime <= Date.now()) {
@@ -705,7 +704,7 @@ class Easee extends utils.Adapter {
       const silenceMs = Date.now() - (this.lastSignalRActivity || 0);
 
       if (silenceMs > SIGNALR_SILENCE_THRESHOLD_MS) {
-        this.log.warn(`SignalR silent for ${Math.round(silenceMs / 1000)}s, forcing reconnect`);
+        this.log.debug(`SignalR silent for ${Math.round(silenceMs / 1000)}s, forcing reconnect`);
         this.lastSignalRActivity = Date.now();
 
         if (this.signalConnection) {
@@ -744,14 +743,12 @@ class Easee extends utils.Adapter {
     }
 
     const polltime = Number(this.config.polltime);
-    if (!Number.isFinite(polltime) || polltime < 1) {
+    if (!Number.isFinite(polltime) || polltime < 300) {
       this.log.warn("Poll interval too short or invalid, using default 300 seconds");
       this.polltime = 300;
     } else {
       this.polltime = polltime;
     }
-
-    this.logtype = !!this.config.logtype;
   }
 
   /**
@@ -1319,7 +1316,7 @@ class Easee extends utils.Adapter {
       this.refreshToken = response.data.refreshToken;
       this.expireTime = Date.now() + (Number(response.data.expiresIn || 0) * 1000 - TOKEN_SAFETY_MARGIN);
         
-      if (this.logtype) this.log.debug("Token refreshed successfully");
+      this.log.debug("Token refreshed successfully");
 
       await this.safeSetState("info.connection", true, true);
       return true;
