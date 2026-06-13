@@ -64,16 +64,6 @@
                     "lg": 4,
                     "xl": 4,
                     "label": "Use SignalR"
-                },
-                "logtype": {
-                    "type": "checkbox",
-                    "xs": 12,
-                    "sm": 12,
-                    "md": 6,
-                    "lg": 4,
-                    "xl": 4,
-                    "label": "detailed info logging",
-                    "help": "provide additional logging in info area"
                 }
             }
         }

@@ -43,12 +43,16 @@ iobroker url 'https://github.com/NCIceWolf/ioBroker.easee/tarball/master' easee
   Placeholder for the next version (at the beginning of the line):
   ### **WORK IN PROGRESS**
 -->
+### 1.0.17 (2026-06-13) – Fork by NCIceWolf
+* (NCIceWolf) updated dependencies
+* (NCIceWolf) changed debugging and removed unnecessary "detailed info logging"
+* (NCIceWolf) Reworked SignalR to only stay active while a car is connected
+
 ### 1.0.16 (2026-06-08) – Fork by NCIceWolf
 * (NCIceWolf) updated dependencies
 * (NCIceWolf) Refactor comments and improve error handling
 * (NCIceWolf) Fix ESLint errors and code quality issues
 * (NCIceWolf) Fix SignalR issues and set SignalR as default
-* (NCIceWolf) Reworked SignalR to only stay active while a car is connected
 * (NCIceWolf) Update dynamicCircuitCurrentPX timing requirement to 500ms
 
 ### 1.0.15 (2026-05-23) – Fork by NCIceWolf
