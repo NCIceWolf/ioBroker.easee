@@ -43,6 +43,9 @@ iobroker url 'https://github.com/NCIceWolf/ioBroker.easee/tarball/master' easee
   Placeholder for the next version (at the beginning of the line):
   ### **WORK IN PROGRESS**
 -->
+### 1.0.18 (2026-07-10) – Fork by NCIceWolf
+* (NCIceWolf) updated dependencies
+
 ### 1.0.17 (2026-06-13) – Fork by NCIceWolf
 * (NCIceWolf) updated dependencies
 * (NCIceWolf) changed debugging and removed unnecessary "detailed info logging"

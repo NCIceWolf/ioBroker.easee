@@ -1,11 +1,11 @@
 {
     "common": {
         "name": "easee",
-        "version": "1.0.17-ncicewolf",
+        "version": "1.0.18-ncicewolf",
         "news": {
-			"1.0.17-ncicewolf": {
-                "en": "SignalR only stays active with connected cars, ready to charge",
-                "de": "SignalR bleibt nur noch aktiv sofern einb ladebereites Fahrzeug angeschlossen ist"
+			"1.0.18-ncicewolf": {
+                "en": "Updated dependencies",
+                "de": "Paket-Aktualisierungen"
             },
             "1.0.10": {
                 "en": "fix version number",
