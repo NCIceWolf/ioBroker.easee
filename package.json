@@ -25,7 +25,7 @@
     "node": ">= 22"
   },
   "dependencies": {
-    "@iobroker/adapter-core": "^3.4.1",
+    "@iobroker/adapter-core": "^3.4.3",
     "@microsoft/signalr": "^10.0.0",
     "axios": "^1.18.1",
     "minimatch": "^10.2.6"
