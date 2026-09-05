@@ -994,7 +994,6 @@ class Easee extends utils.Adapter {
       throw new Error('Easee API error on charger observations - stop refresh');
     }
   }
-  }
 
   /**
    * Converts an Easee-Observation-Array into the former state object
