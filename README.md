@@ -47,7 +47,7 @@ iobroker url 'https://github.com/NCIceWolf/ioBroker.easee/tarball/master' easee
 * (NCIceWolf) updated dependencies
 * (NCIceWolf) switched reading endpoints for charger states from "State" to "Get Observations" (changed by Easee on 01.09.26)
 * (NCIceWolf) added Easee observation mapping
-* 
+
 ### 1.0.18 (2026-07-10) – Fork by NCIceWolf
 * (NCIceWolf) updated dependencies
 
