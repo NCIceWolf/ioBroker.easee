@@ -986,7 +986,6 @@ class Easee extends utils.Adapter {
         `getChargerObservations(${chargerId})`
         );
       this.log.debug(`Charger observations ausgelesen für id: ${chargerId}`);
-      this.log.debug(JSON.stringify(data));
 
       return data && data.observations ? data.observations : [];
     } catch (error) {
