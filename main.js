@@ -980,10 +980,20 @@ class Easee extends utils.Adapter {
     const observationIds = ids || Object.keys(EASEE_OBSERVATION_MAP);
     const idString = Array.isArray(observationIds) ? observationIds.join(",") : observationIds;
 
-    return await this._apiGet(
-      `/state/${encodedChargerId}/observations?ids=${idString}`,
-      `getChargerObservations(${chargerId})`
-    );
+    try {
+      const data = await this._apiGet(
+        `/state/${encodedChargerId}/observations?ids=${idString}`,
+        `getChargerObservations(${chargerId})`
+        );
+      this.log.debug(`Charger observations ausgelesen für id: ${chargerId}`);
+      this.log.debug(JSON.stringify(data));
+
+      return data;
+    } catch (error) {
+      this.log.error(`Easee API error on charger observations: ${this.getErrorMessage(error)}`);
+      throw new Error('Easee API error on charger observations - stop refresh');
+    }
+  }
   }
 
   /**
