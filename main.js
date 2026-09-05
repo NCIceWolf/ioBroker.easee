@@ -14,11 +14,59 @@ const MIN_POLL_TIME_ENERGY = 1800; // seconds
 const TOKEN_SAFETY_MARGIN = 30000; // milliseconds
 const SIGNALR_WATCHDOG_INTERVAL_MS = 60000; // milliseconds
 const SIGNALR_SILENCE_THRESHOLD_MS = 360000; // milliseconds
-const SIGNALR_STOP_GRACE_MS = 3 * 60 * 1000; // 3 minutes
+const SIGNALR_STOP_GRACE_MS = 5 * 60 * 1000; // 5 minutes
 const SIGNALR_CHARGING_OP_MODES = new Set([2, 3, 6]);
 const SIGNALR_NON_CHARGING_OP_MODES = new Set([0, 1, 4, 5, 7, 8]);
 const API_TIMEOUT_MS = 30000; // milliseconds
 const MAX_RETRY_AFTER_MS = 60000; // milliseconds
+
+const EASEE_OBSERVATION_MAP = {
+  // Config
+  22: "circuitMaxCurrentP1",
+  23: "circuitMaxCurrentP2",
+  24: "circuitMaxCurrentP3",
+  31: "isEnabled",
+  36: "wiFiSSID",
+  38: "phaseMode",
+  40: "ledStripBrightness",
+  44: "smartButtonEnabled",
+  47: "maxChargerCurrent",
+  48: "dynamicChargerCurrent",
+  102: "smartCharging",
+  111: "dynamicCircuitCurrentP1",
+  112: "dynamicCircuitCurrentP2",
+  113: "dynamicCircuitCurrentP3",
+
+  // Status
+  46: "ledMode",
+  68: "wiFiAPEnabled",
+  80: "chargerFirmware",
+  96: "reasonForNoCurrent",
+  103: "cableLocked",
+  109: "chargerOpMode",
+  114: "outputCurrent",
+  120: "totalPower",
+  121: "sessionEnergy",
+  122: "energyPerHour",
+  124: "lifetimeEnergy",
+  132: "wiFiRSSI",
+  150: "TempMax",
+  182: "inCurrentT2",
+  183: "inCurrentT3",
+  184: "inCurrentT4",
+  185: "inCurrentT5",
+  190: "inVoltageT1T2",
+  191: "inVoltageT1T3",
+  192: "inVoltageT1T4",
+  193: "inVoltageT1T5",
+  194: "inVoltageT2T3",
+  195: "inVoltageT2T4",
+  196: "inVoltageT2T5",
+  197: "inVoltageT3T4",
+  198: "inVoltageT3T5",
+  199: "inVoltageT4T5",
+  250: "isOnline",
+};
 
 class Easee extends utils.Adapter {
   constructor(options) {
@@ -39,7 +87,7 @@ class Easee extends utils.Adapter {
     this.roundCounter = 0;
     this.arrCharger = [];
     this.isUnloading = false;
-    
+
     // Concurrency locks
     this.tokenRefreshPromise = undefined;
     this.dynamicCircuitCurrentP = [0, 0, 0]; // P1, P2, P3
@@ -134,10 +182,10 @@ class Easee extends utils.Adapter {
           const retryAfterMs = Number.isFinite(retryAfterSeconds)
             ? Math.min(Math.max(retryAfterSeconds * 1000, 1000), MAX_RETRY_AFTER_MS)
             : 5000;
-          
+
           this.log.warn(`HTTP 429 Rate limited. Pausing for ${retryAfterMs / 1000}s before retrying...`);
           await new Promise((resolve) => setTimeout(resolve, retryAfterMs));
-          
+
           return client(originalRequest);
         }
 
@@ -150,7 +198,6 @@ class Easee extends utils.Adapter {
 
   /**
    * Helper to safely set a state using setStateChangedAsync
-   * This drastically reduces CPU and DB load by bypassing the event bus if the value hasn't changed.
    * @param {string} id The state ID to update
    * @param {string | number | boolean | null} val The new value to set
    * @param {boolean} ack Whether the state is acknowledged
@@ -180,7 +227,7 @@ class Easee extends utils.Adapter {
           this.tokenRefreshPromise = undefined;
         });
       }
-      
+
       const success = await this.tokenRefreshPromise;
       if (!success) {
         throw new Error("Unable to refresh access token");
@@ -206,7 +253,7 @@ class Easee extends utils.Adapter {
   }
 
   /**
-   * Validate site ID format (Easee delivers this ID as integer)
+   * Validate site ID format
    * @param {string | number} siteId The unique identifier of the site
    */
   validateSiteId(siteId) {
@@ -223,7 +270,7 @@ class Easee extends utils.Adapter {
   }
 
   /**
-   * Validate circuit ID format (Easee liefert diese oft als Integer)
+   * Validate circuit ID format
    * @param {string | number} circuitId The unique identifier of the circuit
    */
   validateCircuitId(circuitId) {
@@ -239,9 +286,6 @@ class Easee extends utils.Adapter {
     return value;
   }
 
-  /**
-   * Start SignalR connection with watchdog and reconnect handling
-   */
   /**
    * Return whether a charger operation mode requires a live SignalR connection.
    * @param {string | number} opMode Charger operation mode
@@ -283,11 +327,8 @@ class Easee extends utils.Adapter {
     }
   }
 
-
   /**
    * Check whether SignalR currently has any runtime activity.
-   * This prevents API polls from repeatedly scheduling grace timers
-   * when SignalR is already fully stopped.
    */
   hasSignalRRuntimeActivity() {
     const state = this.signalConnection?.state;
@@ -297,14 +338,10 @@ class Easee extends utils.Adapter {
       this.signalRReconnectTimer ||
       this.signalRWatchdog ||
       this.signalRStopGraceTimer ||
-      (
-        this.signalConnection &&
-        state !== signalR.HubConnectionState.Disconnected
-      )
+      (this.signalConnection && state !== signalR.HubConnectionState.Disconnected)
     );
   }
 
-  
   /**
    * Schedule SignalR shutdown after the grace timeout if no charger returns to charging mode.
    * @param {string} reason Human-readable reason for logging
@@ -316,7 +353,7 @@ class Easee extends utils.Adapter {
       this.cancelSignalRStopGraceTimer();
       return;
     }
-    
+
     if (!this.hasSignalRRuntimeActivity()) {
       return;
     }
@@ -375,10 +412,8 @@ class Easee extends utils.Adapter {
     }
   }
 
-/**
+  /**
    * Update SignalR lifecycle based on a charger's operation mode.
-   * SignalR is started/kept alive only while at least one charger is in mode 2, 3 or 6.
-   * Once all known chargers leave those modes, shutdown is delayed by SIGNALR_STOP_GRACE_MS.
    * @param {string | number} chargerId The charger identifier
    * @param {string | number} opMode Charger operation mode
    * @param {string} source Source used for logging
@@ -442,9 +477,7 @@ class Easee extends utils.Adapter {
     }
 
     if (!this.hasAnySignalRChargingCharger()) {
-      const shouldScheduleGraceTimer =
-        previousWasCharging ||
-        this.hasSignalRRuntimeActivity();
+      const shouldScheduleGraceTimer = previousWasCharging || this.hasSignalRRuntimeActivity();
 
       if (!shouldScheduleGraceTimer) {
         if (modeChanged) {
@@ -463,7 +496,6 @@ class Easee extends utils.Adapter {
 
   /**
    * Start SignalR connection with watchdog and reconnect handling.
-   * The connection is only started when at least one known charger is in opMode 2, 3 or 6.
    */
   async startSignal() {
     if (this.signalRUnloaded || this.isUnloading || !this.config.signalR) {
@@ -584,7 +616,7 @@ class Easee extends utils.Adapter {
   handleSignalRProductUpdate(data) {
     this.lastSignalRActivity = Date.now();
 
-    if (!data || !data.id) {
+    if (!data || data.id === undefined || data.id === null) {
       this.log.warn("Invalid SignalR ProductUpdate: missing data.id");
       return;
     }
@@ -595,19 +627,14 @@ class Easee extends utils.Adapter {
       return;
     }
 
-    // Apply sanitization defensively for base mid
     const safeMid = this.sanitizeId(data.mid);
     const tmpValueId = `${safeMid}${dataName}`;
     const convertedValue = this.convertSignalRValue(data.value, data.dataType);
 
-    this.log.debug(
-      `New value over SignalR for: ${tmpValueId}, value: ${convertedValue}`
-    );
+    this.log.debug(`New value over SignalR for: ${tmpValueId}, value: ${convertedValue}`);
 
     this.safeSetState(tmpValueId, convertedValue, true).catch((err) => {
-      this.log.error(
-        `Failed to set state ${tmpValueId}: ${this.getErrorMessage(err)}`
-      );
+      this.log.error(`Failed to set state ${tmpValueId}: ${this.getErrorMessage(err)}`);
     });
 
     if (dataName.endsWith("status.chargerOpMode") || tmpValueId.endsWith("status.chargerOpMode")) {
@@ -627,11 +654,11 @@ class Easee extends utils.Adapter {
       case 2: // Boolean
         return value === "1" || value === 1 || value === true;
       case 3: { // Float
-        const parsed = parseFloat(value);
+        const parsed = Number.parseFloat(value);
         return Number.isNaN(parsed) ? null : parsed;
       }
       case 4: { // Integer
-        const parsed = parseInt(value, 10);
+        const parsed = Number.parseInt(value, 10);
         return Number.isNaN(parsed) ? null : parsed;
       }
       default:
@@ -646,12 +673,11 @@ class Easee extends utils.Adapter {
   async subscribeAllChargersToSignalR(connection) {
     for (const chargerId of this.arrCharger) {
       try {
+        // eslint-disable-next-line no-await-in-loop
         await connection.send("SubscribeWithCurrentState", chargerId, true);
         this.log.info(`Charger registered in SignalR: ${chargerId}`);
       } catch (err) {
-        this.log.warn(
-          `SignalR subscribe for ${chargerId} failed: ${this.getErrorMessage(err)}`
-        );
+        this.log.warn(`SignalR subscribe for ${chargerId} failed: ${this.getErrorMessage(err)}`);
       }
     }
   }
@@ -875,7 +901,6 @@ class Easee extends utils.Adapter {
       // Process chargers sequentially to respect API rate limits
       for (const charger of chargers) {
         try {
-          // eslint-disable-next-line no-await-in-loop
           await this.processCharger(charger, shouldPollEnergy);
         } catch (error) {
           this.log.error(
@@ -889,7 +914,6 @@ class Easee extends utils.Adapter {
       this.log.error(`readAllStates failed: ${this.getErrorMessage(error)}`);
     } finally {
       if (!this.isUnloading) {
-        // Memory Optimization: Using arrow function instead of bind(this)
         this.adapterIntervals.readAllStates = setTimeout(
           () => this.readAllStates(),
           this.polltime * 1000
@@ -914,9 +938,9 @@ class Easee extends utils.Adapter {
       // Execute object creation in parallel for fast initialization
       await Promise.all([
         this.setAllStatusObjects(charger),
-        this.setAllConfigObjects(charger)
+        this.setAllConfigObjects(charger),
       ]);
-      
+
       this.arrCharger.push(chargerId);
       this.log.debug(`Initialized new charger: ${chargerId}`);
 
@@ -930,20 +954,81 @@ class Easee extends utils.Adapter {
       }
     }
 
-    // Fetch state and config in parallel
-    const [chargerState, chargerConfig] = await Promise.all([
-      this.getChargerState(chargerId),
-      this.getChargerConfig(chargerId),
-    ]);
+    // Request observations and transform
+    const observations = await this.getChargerObservations(chargerId);
+    const chargerData = this.mapObservationsToState(observations);
 
-    await this.setNewStatusToCharger(charger, chargerState);
-    await this.updateSignalRConnectionForChargerOpMode(chargerId, chargerState?.chargerOpMode, "API poll");
-    await this.setConfigStatus(charger, chargerConfig);
+    await this.setNewStatusToCharger(charger, chargerData);
+    await this.updateSignalRConnectionForChargerOpMode(chargerId, chargerData?.chargerOpMode, "API poll");
+    await this.setConfigStatus(charger, chargerData);
 
     if (shouldPollEnergy) {
       const chargerSession = await this.getChargerSession(chargerId);
       await this.setNewSessionToCharger(charger, chargerSession);
     }
+  }
+
+  /**
+   * Get charger observations
+   * @param {string} chargerId The unique identifier of the charger
+   * @param {Array<number|string>} [ids] Optional subset of observation IDs
+   */
+  async getChargerObservations(chargerId, ids) {
+    chargerId = this.validateChargerId(chargerId);
+    const encodedChargerId = encodeURIComponent(chargerId);
+
+    const observationIds = ids || Object.keys(EASEE_OBSERVATION_MAP);
+    const idString = Array.isArray(observationIds) ? observationIds.join(",") : observationIds;
+
+    return await this._apiGet(
+      `/state/${encodedChargerId}/observations?ids=${idString}`,
+      `getChargerObservations(${chargerId})`
+    );
+  }
+
+  /**
+   * Converts an Easee-Observation-Array into the former state object
+   * @param {Array<{id: number, value: any}>} observations 
+   * @returns {Record<string, any>} synthetic state object
+   */
+  mapObservationsToState(observations) {
+    const syntheticState = {};
+
+    if (!Array.isArray(observations)) {
+      return syntheticState;
+    }
+
+    for (const obs of observations) {
+      const obsId = obs?.id !== undefined ? obs.id : obs?.Id;
+      if (obsId === undefined) continue;
+
+      const propertyName = EASEE_OBSERVATION_MAP[obsId] ||
+        (obs.name ? obs.name.charAt(0).toLowerCase() + obs.name.slice(1) : null);
+
+      if (propertyName) {
+        let val = obs.value !== undefined ? obs.value : obs.Value;
+
+        if (val === "true") val = true;
+        if (val === "false") val = false;
+
+        // Keep wiFiSSID and version as strings
+        if (propertyName !== "wiFiSSID") {
+          if (typeof val === "string" && !Number.isNaN(Number(val)) && val.trim() !== "") {
+            val = Number(val);
+          }
+        } else if (val !== null && val !== undefined) {
+          val = String(val);
+        }
+
+        syntheticState[propertyName] = val;
+      }
+    }
+
+    if (syntheticState.inVoltageT1T2 !== undefined && syntheticState.voltage === undefined) {
+      syntheticState.voltage = syntheticState.inVoltageT1T2;
+    }
+
+    return syntheticState;
   }
 
   /**
@@ -966,7 +1051,6 @@ class Easee extends utils.Adapter {
         return;
       }
 
-      // Safe to extract because we sanitized it upon object creation
       const chargerId = parts[2];
       const category = parts[3];
       const property = parts[4];
@@ -987,7 +1071,7 @@ class Easee extends utils.Adapter {
   }
 
   /**
-   * Handle configuration change with strict type casting (Relies on SignalR for ACK)
+   * Handle configuration change with strict type casting
    * @param {string} chargerId The unique identifier of the charger
    * @param {string} property The configuration property to change
    * @param {Object} state The ioBroker state object containing the new value
@@ -999,7 +1083,6 @@ class Easee extends utils.Adapter {
       chargerId = this.validateChargerId(chargerId);
       let parsedValue = state.val;
 
-      // Strict type casting to prevent sending malformed payloads
       if (
         property.includes("Current") ||
         property.includes("phaseMode") ||
@@ -1114,11 +1197,13 @@ class Easee extends utils.Adapter {
       }
 
       await this.changeCircuitConfig(site.id, site.circuits[0].id);
-      this.pendingCircuitUpdate = false;
     } finally {
       this.isUpdatingCircuit = false;
       if (this.pendingCircuitUpdate) {
-        this.executeDynamicCircuitUpdate(chargerId);
+        this.pendingCircuitUpdate = false;
+        this.executeDynamicCircuitUpdate(chargerId).catch((err) => {
+          this.log.error(`Failed to execute pending dynamic circuit update: ${this.getErrorMessage(err)}`);
+        });
       }
     }
   }
@@ -1183,6 +1268,7 @@ class Easee extends utils.Adapter {
         [`${baseId}.status.ledMode`, chargerStates.ledMode],
         [`${baseId}.status.lifetimeEnergy`, chargerStates.lifetimeEnergy],
         [`${baseId}.status.energyPerHour`, chargerStates.energyPerHour],
+        [`${baseId}.status.TempMax`, chargerStates.TempMax],
         [`${baseId}.status.inCurrentT2`, chargerStates.inCurrentT2],
         [`${baseId}.status.inCurrentT3`, chargerStates.inCurrentT3],
         [`${baseId}.status.inCurrentT4`, chargerStates.inCurrentT4],
@@ -1205,11 +1291,13 @@ class Easee extends utils.Adapter {
       ];
 
       await Promise.all(
-        stateUpdates.map(([id, value]) =>
-          this.safeSetState(id, value, true).catch((err) => {
-            this.log.warn(`Failed to set state ${id}: ${this.getErrorMessage(err)}`);
-          })
-        )
+        stateUpdates
+          .filter(([, value]) => value !== undefined)
+          .map(([id, value]) =>
+            this.safeSetState(id, value, true).catch((err) => {
+              this.log.warn(`Failed to set state ${id}: ${this.getErrorMessage(err)}`);
+            })
+          )
       );
     } catch (error) {
       this.log.error(`Error setting charger status: ${this.getErrorMessage(error)}`);
@@ -1240,13 +1328,15 @@ class Easee extends utils.Adapter {
         [`${baseId}.config.circuitMaxCurrentP2`, chargerConfig.circuitMaxCurrentP2],
         [`${baseId}.config.circuitMaxCurrentP3`, chargerConfig.circuitMaxCurrentP3],
       ];
-      
+
       await Promise.all(
-        stateUpdates.map(([id, value]) =>
-          this.safeSetState(id, value, true).catch((err) => {
-            this.log.warn(`Failed to set config state ${id}: ${this.getErrorMessage(err)}`);
-          })
-        )
+        stateUpdates
+          .filter(([, value]) => value !== undefined)
+          .map(([id, value]) =>
+            this.safeSetState(id, value, true).catch((err) => {
+              this.log.warn(`Failed to set config state ${id}: ${this.getErrorMessage(err)}`);
+            })
+          )
       );
     } catch (error) {
       this.log.error(`Error setting charger config: ${this.getErrorMessage(error)}`);
@@ -1281,7 +1371,7 @@ class Easee extends utils.Adapter {
 
       this.log.debug("Login successful");
       this.log.debug(`Token expires in ${response.data.expiresIn}s (${Math.round((this.expireTime - Date.now()) / 1000)}s remaining)`);
-      
+
       await this.safeSetState("info.connection", true, true);
       return true;
     } catch (error) {
@@ -1315,7 +1405,7 @@ class Easee extends utils.Adapter {
       this.accessToken = response.data.accessToken;
       this.refreshToken = response.data.refreshToken;
       this.expireTime = Date.now() + (Number(response.data.expiresIn || 0) * 1000 - TOKEN_SAFETY_MARGIN);
-        
+
       this.log.debug("Token refreshed successfully");
 
       await this.safeSetState("info.connection", true, true);
@@ -1323,7 +1413,7 @@ class Easee extends utils.Adapter {
     } catch (error) {
       const status = error?.response?.status;
       this.log.warn(`Token refresh failed (HTTP ${status || "?"}): ${this.getErrorMessage(error)}`);
-      
+
       if (status >= 400 && status < 500) {
         this.log.debug("Refresh token invalid, attempting full login");
         const loginSuccess = await this.login(this.config.username, this.config.client_secret);
@@ -1380,26 +1470,6 @@ class Easee extends utils.Adapter {
       this.log.error(`Failed to get chargers: ${this.getErrorMessage(error)}`);
       return undefined;
     }
-  }
-
-  /**
-   * Get charger state
-   * @param {string} chargerId The unique identifier of the charger
-   */
-  async getChargerState(chargerId) {
-    chargerId = this.validateChargerId(chargerId);
-    const encodedChargerId = encodeURIComponent(chargerId);
-    return await this._apiGet(`/api/chargers/${encodedChargerId}/state`, `getChargerState(${chargerId})`);
-  }
-
-  /**
-   * Get charger configuration
-   * @param {string} chargerId The unique identifier of the charger
-   */
-  async getChargerConfig(chargerId) {
-    chargerId = this.validateChargerId(chargerId);
-    const encodedChargerId = encodeURIComponent(chargerId);
-    return await this._apiGet(`/api/chargers/${encodedChargerId}/config`, `getChargerConfig(${chargerId})`);
   }
 
   /**
@@ -1530,7 +1600,6 @@ class Easee extends utils.Adapter {
   async changeMaxCircuitConfig(siteId, circuitId, value) {
     siteId = this.validateSiteId(siteId);
     circuitId = this.validateCircuitId(circuitId);
-    void value; // Intentionally unused since this API call is not implemented
 
     try {
       this.log.debug(`Updating circuit max current to ${value}`);
@@ -1588,7 +1657,7 @@ class Easee extends utils.Adapter {
         { name: "resume", displayName: "Resume charging" },
         { name: "reboot", displayName: "Reboot Charger" },
       ];
-      
+
       for (const button of controlButtons) {
         promises.push(
           this.setObjectNotExistsAsync(`${baseId}.control.${button.name}`, {
@@ -1609,7 +1678,7 @@ class Easee extends utils.Adapter {
           native: {},
         }).then(() => this.safeSetState(`${baseId}.id`, charger.id, true))
       );
-      
+
       promises.push(
         this.setObjectNotExistsAsync(`${baseId}.name`, {
           type: "state",
@@ -1617,7 +1686,7 @@ class Easee extends utils.Adapter {
           native: {},
         })
       );
-      
+
       const statusObjects = [
         { name: "cableLocked", displayName: "Cable lock state", type: "boolean", role: "sensor.lock" },
         { name: "chargerOpMode", displayName: "Charger operation mode", type: "number", role: "value", states: { 0: "Offline", 1: "Disconnected", 2: "AwaitingStart", 3: "Charging", 4: "Completed", 5: "Error", 6: "ReadyToCharge", 7: "AwaitingAuthentication", 8: "DeAuthenticating" } },
@@ -1637,7 +1706,7 @@ class Easee extends utils.Adapter {
         { name: "connectedToCloud", displayName: "Connected to cloud", type: "boolean", role: "indicator.connected" },
         { name: "cloudDisconnectReason", displayName: "Cloud disconnect reason", type: "string", role: "value" },
       ];
-      
+
       for (const obj of statusObjects) {
         const common = { name: obj.displayName, type: obj.type, role: obj.role, read: true, write: false };
         if (obj.unit) common.unit = obj.unit;
@@ -1705,7 +1774,7 @@ class Easee extends utils.Adapter {
         { name: "smartButtonEnabled", displayName: "Smart button enabled", type: "boolean", role: "switch.enable" },
         { name: "wiFiSSID", displayName: "WiFi SSID", type: "string", role: "text" },
       ];
-      
+
       const promises = configObjects.map(async (obj) => {
         const common = { name: obj.displayName, type: obj.type, role: obj.role, read: true, write: true };
         if (obj.unit) common.unit = obj.unit;
@@ -1740,7 +1809,7 @@ class Easee extends utils.Adapter {
         if (!session?.year || !session?.month) continue;
 
         const sessionPath = `${baseId}.session.${session.year}.${session.month}`;
-        
+
         promises.push(
           this.setObjectNotExistsAsync(`${sessionPath}.totalEnergyUsage`, {
             type: "state",
@@ -1748,7 +1817,7 @@ class Easee extends utils.Adapter {
             native: {},
           }).then(() => this.safeSetState(`${sessionPath}.totalEnergyUsage`, session.totalEnergyUsage, true))
         );
-        
+
         promises.push(
           this.setObjectNotExistsAsync(`${sessionPath}.totalCost`, {
             type: "state",
