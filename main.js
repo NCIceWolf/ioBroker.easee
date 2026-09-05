@@ -988,7 +988,7 @@ class Easee extends utils.Adapter {
       this.log.debug(`Charger observations ausgelesen für id: ${chargerId}`);
       this.log.debug(JSON.stringify(data));
 
-      return data;
+      return data && data.observations ? data.observations : [];
     } catch (error) {
       this.log.error(`Easee API error on charger observations: ${this.getErrorMessage(error)}`);
       throw new Error('Easee API error on charger observations - stop refresh');
