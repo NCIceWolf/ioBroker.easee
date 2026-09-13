@@ -22,7 +22,7 @@
     "url": "https://github.com/Newan/ioBroker.easee"
   },
   "engines": {
-    "node": ">= 22"
+    "node": ">= 24"
   },
   "dependencies": {
     "@iobroker/adapter-core": "^3.4.3",
