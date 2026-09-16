@@ -96,11 +96,13 @@ class Easee extends utils.Adapter {
 
     // Timer / interval storage
     /**
-    * @type {{
-    *   readAllStates: ReturnType<typeof setTimeout> | undefined,
-    *   updateDynamicCircuitCurrent: ReturnType<typeof setTimeout> | undefined
-    * }}
-    */
+     * Timer and interval handles.
+     *
+     * @type {{
+     *   readAllStates: ReturnType<typeof setTimeout> | undefined,
+     *   updateDynamicCircuitCurrent: ReturnType<typeof setTimeout> | undefined
+     * }}
+     */
     this.adapterIntervals = {
       readAllStates: undefined,
       updateDynamicCircuitCurrent: undefined,
@@ -214,36 +216,50 @@ class Easee extends utils.Adapter {
    * @property {string} displayName Human-readable state name
    * @property {ioBroker.StateCommon["type"]} type ioBroker state data type
    * @property {string} role ioBroker state role
-   * @property {string} [unit] Optional unit
+   * @property {string} [unit] Optional physical unit
    */
 
   /**
+   * Easee circuit information.
+   *
    * @typedef {object} EaseeCircuit
    * @property {string | number} id Circuit identifier
    */
+  
   /**
+   * Easee site response.
+   *
    * @typedef {object} EaseeSiteResponse
    * @property {string | number} id Site identifier
    * @property {EaseeCircuit[]} circuits Circuits belonging to the site
    */
+  
   /**
+   * Easee charger observation.
+   *
    * @typedef {object} EaseeObservation
-   * @property {number} [id]
-   * @property {number} [Id]
-   * @property {string} [name]
-   * @property {unknown} [value]
-   * @property {unknown} [Value]
+   * @property {number} [id] Lowercase observation identifier
+   * @property {number} [Id] Uppercase observation identifier used by legacy responses
+   * @property {string} [name] Observation property name
+   * @property {unknown} [value] Lowercase observation value
+   * @property {unknown} [Value] Uppercase observation value used by legacy responses
    */
+  
   /**
+   * Easee observation API response.
+   *
    * @typedef {object} EaseeObservationResponse
-   * @property {EaseeObservation[]} observations
+   * @property {EaseeObservation[]} observations Charger observations returned by the API
    */
+  
   /**
+   * Easee charging session.
+   *
    * @typedef {object} EaseeSession
-   * @property {string | number} [year]
-   * @property {string | number} [month]
-   * @property {number} [totalEnergyUsage]
-   * @property {number} [totalCost]
+   * @property {string | number} [year] Year of the charging session
+   * @property {string | number} [month] Month of the charging session
+   * @property {number} [totalEnergyUsage] Total energy consumed during the session
+   * @property {number} [totalCost] Total cost of the charging session
    */
   
   /**
