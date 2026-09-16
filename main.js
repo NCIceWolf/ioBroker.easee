@@ -1435,7 +1435,10 @@ class Easee extends utils.Adapter {
       await this.safeSetState("info.connection", true, true);
       return true;
     } catch (error) {
-      const status = error?.response?.status;
+      //const status = error?.response?.status;
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+      }
       this.log.warn(`Token refresh failed (HTTP ${status || "?"}): ${this.getErrorMessage(error)}`);
 
       if (status >= 400 && status < 500) {
@@ -1462,7 +1465,10 @@ class Easee extends utils.Adapter {
       this.log.debug(`${context}: success`);
       return response.data;
     } catch (error) {
-      const status = error?.response?.status;
+      //const status = error?.response?.status;
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+      }
       throw new Error(`${context}: ${status ? `HTTP ${status}` : "request failed"} - ${this.getErrorMessage(error)}`);
     }
   }
@@ -1479,7 +1485,10 @@ class Easee extends utils.Adapter {
       this.log.debug(`${context}: success`);
       return response.data;
     } catch (error) {
-      const status = error?.response?.status;
+      //const status = error?.response?.status;
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+      }
       throw new Error(`${context}: ${status ? `HTTP ${status}` : "request failed"} - ${this.getErrorMessage(error)}`);
     }
   }
