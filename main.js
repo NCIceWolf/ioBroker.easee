@@ -664,7 +664,7 @@ class Easee extends utils.Adapter {
       case 2: // Boolean
         return value === "1" || value === 1 || value === true;
       case 3: { // Float
-        const parsed = Number.parseFloat((String(value));
+        const parsed = Number.parseFloat(String(value));
         return Number.isNaN(parsed) ? null : parsed;
       }
       case 4: { // Integer
