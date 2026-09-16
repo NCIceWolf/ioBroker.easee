@@ -1449,10 +1449,18 @@ class Easee extends utils.Adapter {
       //const status = error?.response?.status;
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
+      } else {
+        this.log.error(
+          `Unexpected error: ${this.getErrorMessage(error)}`
+        );
       }
       this.log.warn(`Token refresh failed (HTTP ${status || "?"}): ${this.getErrorMessage(error)}`);
 
-      if (status >= 400 && status < 500) {
+      if (
+        status !== undefined &&
+        status >= 400 &&
+        status < 500
+      ) {
         this.log.debug("Refresh token invalid, attempting full login");
         const loginSuccess = await this.login(this.config.username, this.config.client_secret);
         if (loginSuccess) return true;
@@ -1479,6 +1487,10 @@ class Easee extends utils.Adapter {
       //const status = error?.response?.status;
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
+      } else {
+        this.log.error(
+          `Unexpected error: ${this.getErrorMessage(error)}`
+        );
       }
       throw new Error(`${context}: ${status ? `HTTP ${status}` : "request failed"} - ${this.getErrorMessage(error)}`);
     }
@@ -1499,6 +1511,10 @@ class Easee extends utils.Adapter {
       //const status = error?.response?.status;
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
+      } else {
+        this.log.error(
+          `Unexpected error: ${this.getErrorMessage(error)}`
+        );
       }
       throw new Error(`${context}: ${status ? `HTTP ${status}` : "request failed"} - ${this.getErrorMessage(error)}`);
     }
