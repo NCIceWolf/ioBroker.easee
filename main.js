@@ -202,6 +202,17 @@ class Easee extends utils.Adapter {
   }
 
   /**
+   * Definition of a charger configuration state.
+   *
+   * @typedef {Object} ConfigObjectDefinition
+   * @property {string} name Object ID segment
+   * @property {string} displayName Human-readable state name
+   * @property {ioBroker.StateCommon["type"]} type ioBroker state data type
+   * @property {string} role ioBroker state role
+   * @property {string} [unit] Optional unit
+   */
+  
+  /**
    * Helper to safely set a state using setStateChangedAsync
    * @param {string} id The state ID to update
    * @param {string | number | boolean | null} val The new value to set
@@ -1822,6 +1833,8 @@ class Easee extends utils.Adapter {
     }
   }
 
+  
+  
   /**
    * Create configuration objects for a charger
    * @param {Object} charger The charger object
@@ -1829,6 +1842,8 @@ class Easee extends utils.Adapter {
   async setAllConfigObjects(charger) {
     try {
       const baseId = this.sanitizeId(charger.id);
+
+      /** @type {ConfigObjectDefinition[]} */
       const configObjects = [
         { name: "isEnabled", displayName: "Charger enabled", type: "boolean", role: "switch.enabled" },
         { name: "phaseMode", displayName: "Phase mode", type: "number", role: "level" },
@@ -1847,11 +1862,22 @@ class Easee extends utils.Adapter {
       ];
 
       const promises = configObjects.map(async (obj) => {
+        /** @type {ioBroker.StateCommon} */
         const common = { name: obj.displayName, type: obj.type, role: obj.role, read: true, write: true };
-        if (obj.unit) common.unit = obj.unit;
+        if (obj.unit !== undefined) {
+          common.unit = obj.unit;
+        }
 
+        /** @type {Omit<ioBroker.StateObject, "_id" | "acl">} */
+        const stateObject = {
+          type: "state",
+          common,
+          native: {},
+        };
+        
         const stateId = `${baseId}.config.${obj.name}`;
-        await this.setObjectNotExistsAsync(stateId, { type: "state", common, native: {} });
+        
+        await this.setObjectNotExistsAsync(stateId, stateObject);
         this.subscribeStates(stateId);
       });
 
