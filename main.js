@@ -1064,7 +1064,17 @@ class Easee extends utils.Adapter {
     const chargerData = this.mapObservationsToState(observations);
 
     await this.setNewStatusToCharger(charger, chargerData);
-    await this.updateSignalRConnectionForChargerOpMode(chargerId, chargerData?.chargerOpMode, "API poll");
+
+    const chargerOpMode = chargerData.chargerOpMode;
+    if (
+      typeof chargerOpMode === "string" ||
+      typeof chargerOpMode === "number"
+    ) {
+      await this.updateSignalRConnectionForChargerOpMode(chargerId, chargerOpMode, "API poll");
+    } else if (chargerOpMode !== undefined && chargerOpMode !== null) {
+      this.log.warn(`Ignoring invalid chargerOpMode for ${chargerId}: ${String(chargerOpMode)}`);
+    }
+      
     await this.setConfigStatus(charger, chargerData);
 
     if (shouldPollEnergy) {
@@ -1571,18 +1581,14 @@ class Easee extends utils.Adapter {
         await this.safeSetState("info.connection", true, true);
         return true;
       } catch (error) {
-        let status;
-
-        if (axios.isAxiosError(error)) {
-          status = error.response?.status;
-        }
+        const status = this.getHttpStatus(error);
         
         this.log.warn(
           `Token refresh failed (HTTP ${status ?? "?"}): ${this.getErrorMessage(error)}`
         );
 
         if (
-          typeof status === "number" &&
+          typeof status !== undefined &&
           status >= 400 &&
           status < 500
         ) {
@@ -1612,6 +1618,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Helper: GET logic
+   *
    * @param {string} path The API endpoint path
    * @param {string} context A descriptive context for logging
    * @returns {Promise<unknown>} API response data
@@ -1622,14 +1629,9 @@ class Easee extends utils.Adapter {
       this.log.debug(`${context}: success`);
       return response.data;
     } catch (error) {
-      let status;
-
-      if (axios.isAxiosError(error)) {
-        status = error.response?.status;
-      }
-      
+      const status = this.getHttpStatus(error);      
       const statusText =
-        typeof status === "number"
+        status !== undefined
         ? `HTTP ${status}`
         : "request failed";
 
@@ -1653,13 +1655,10 @@ class Easee extends utils.Adapter {
       this.log.debug(`${context}: success`);
       return response.data;
     } catch (error) {
-      let status;
-      if (axios.isAxiosError(error)) {
-        status = error.response?.status;
-      }
+      const status = this.getHttpStatus(error);
 
       const statusText =
-        typeof status === "number"
+        status !== undefined
         ? `HTTP ${status}`
         : "request failed";
 
@@ -1824,21 +1823,27 @@ class Easee extends utils.Adapter {
 
   /**
    * Change circuit maximum current
-   * @param {string} siteId The unique identifier of the site
-   * @param {string} circuitId The unique identifier of the circuit
+   *
+   * @param {string | number} siteId The unique identifier of the site
+   * @param {string | number} circuitId The unique identifier of the circuit
    * @param {number} value The new maximum circuit current
    */
   async changeMaxCircuitConfig(siteId, circuitId, value) {
-    siteId = this.validateSiteId(siteId);
-    circuitId = this.validateCircuitId(circuitId);
+    const validatedSiteId = this.validateSiteId(siteId);
+    const validatedCircuitId = this.validateCircuitId(circuitId);
 
     try {
       this.log.debug(`Updating circuit max current to ${value}`);
       await this._apiPost(
-        `/api/sites/${siteId}/circuits/${circuitId}/settings`,
-        { maxCircuitCurrentP1: value, maxCircuitCurrentP2: value, maxCircuitCurrentP3: value },
-        `changeMaxCircuitConfig(${siteId}, ${circuitId})`
+        `/api/sites/${validatedSiteId}/circuits/${validatedCircuitId}/settings`,
+        {
+          maxCircuitCurrentP1: value,
+          maxCircuitCurrentP2: value,
+          maxCircuitCurrentP3: value,
+        },
+        `changeMaxCircuitConfig(${validatedSiteId}, ${validatedCircuitId})`
       );
+      
       this.log.debug(`Circuit max current update successful: ${value}A`);
     } catch (error) {
       this.log.error(`Circuit max current update failed: ${this.getErrorMessage(error)}`);
@@ -1848,12 +1853,13 @@ class Easee extends utils.Adapter {
 
   /**
    * Change dynamic circuit current
-   * @param {string} siteId The unique identifier of the site
-   * @param {string} circuitId The unique identifier of the circuit
+   *
+   * @param {string | number} siteId The unique identifier of the site
+   * @param {string | number} circuitId The unique identifier of the circuit
    */
   async changeCircuitConfig(siteId, circuitId) {
-    siteId = this.validateSiteId(siteId);
-    circuitId = this.validateCircuitId(circuitId);
+    const validatedSiteId = this.validateSiteId(siteId);
+    const validatedCircuitId = this.validateCircuitId(circuitId);
 
     try {
       const payload = {
@@ -1862,7 +1868,12 @@ class Easee extends utils.Adapter {
         dynamicCircuitCurrentP3: this.dynamicCircuitCurrentP[2],
       };
       this.log.debug(`Updating dynamic circuit current: P1=${payload.dynamicCircuitCurrentP1}, P2=${payload.dynamicCircuitCurrentP2}, P3=${payload.dynamicCircuitCurrentP3}`);
-      await this._apiPost(`/api/sites/${siteId}/circuits/${circuitId}/settings`, payload, `changeCircuitConfig(${siteId}, ${circuitId})`);
+      await this._apiPost(
+        `/api/sites/${validatedSiteId}/circuits/${validatedCircuitId}/settings`,
+        payload,
+        `changeCircuitConfig(${siteId}, ${circuitId})`
+      );
+      
       this.log.debug("Dynamic circuit current update successful");
 
       this.dynamicCircuitCurrentP = [0, 0, 0];
@@ -2095,21 +2106,27 @@ class Easee extends utils.Adapter {
 
         const sessionPath = `${baseId}.session.${session.year}.${session.month}`;
 
-        promises.push(
-          this.setObjectNotExistsAsync(`${sessionPath}.totalEnergyUsage`, {
-            type: "state",
-            common: { name: "Total energy usage", type: "number", role: "value.power.consumption", read: true, write: false, unit: "kWh" },
-            native: {},
-          }).then(() => this.safeSetState(`${sessionPath}.totalEnergyUsage`, session.totalEnergyUsage, true))
-        );
+        if (typeof session.totalEnergyUsage === "number") {
+          const totalEnergyUsage = session.totalEnergyUsage;
+          promises.push(
+            this.setObjectNotExistsAsync(`${sessionPath}.totalEnergyUsage`, {
+              type: "state",
+              common: { name: "Total energy usage", type: "number", role: "value.power.consumption", read: true, write: false, unit: "kWh" },
+              native: {},
+            }).then(() => this.safeSetState(`${sessionPath}.totalEnergyUsage`, totalEnergyUsage, true))
+          );
+        }
 
-        promises.push(
-          this.setObjectNotExistsAsync(`${sessionPath}.totalCost`, {
-            type: "state",
-            common: { name: "Total cost", type: "number", role: "value.money", read: true, write: false },
-            native: {},
-          }).then(() => this.safeSetState(`${sessionPath}.totalCost`, session.totalCost, true))
-        );
+        if (typeof session.totalCost === "number") {
+          const totalCost = session.totalCost;
+          promises.push(
+            this.setObjectNotExistsAsync(`${sessionPath}.totalCost`, {
+              type: "state",
+              common: { name: "Total cost", type: "number", role: "value.money", read: true, write: false },
+              native: {},
+            }).then(() => this.safeSetState(`${sessionPath}.totalCost`, totalCost, true))
+          );
+        }
       }
 
       const yearTotals = {};
@@ -2136,6 +2153,35 @@ class Easee extends utils.Adapter {
   }
 
   /**
+   * Extract the HTTP status from an unknown error value.
+   *
+   * @param {unknown} error The error value
+   * @returns {number | undefined} HTTP status, if available
+   */
+  getHttpStatus(error) {
+    if (
+      error === null ||
+      typeof error !== "object" ||
+      !("response" in error)
+    ) {
+      return undefined;
+    }
+
+    const response = error.response;
+    if (
+      response === null ||
+      typeof response !== "object" ||
+      !("status" in response)
+    ) {
+      return undefined;
+    }
+    return typeof response.status === "number"
+      ? response.status
+      : undefined;
+  }
+
+  
+  /**
    * Extract a human-readable message from an unknown error value.
    *
    * @param {unknown} error The error value
@@ -2150,44 +2196,41 @@ class Easee extends utils.Adapter {
       return error;
     }
 
-    if (axios.isAxiosError(error)) {
-      const responseData = error.response?.data;
-
-      if (
-        responseData !== null &&
-        typeof responseData === "object" &&
-        "message" in responseData
-      ) {
-        const responseMessage = responseData.message;
-
-        if (typeof responseMessage === "string") {
-          return responseMessage;
+    if (typeof error === "object") {
+      if ("response" in error) {
+        const response = error.response;
+        if (
+          response !== null &&
+          typeof response === "object" &&
+          "data" in response
+        ) {
+          const responseData = response.data;
+          if (
+            responseData !== null &&
+            typeof responseData === "object" &&
+            "message" in responseData &&
+            typeof responseData.message === "string"
+          ) {
+            return responseData.message;
+          }
+          if (typeof responseData === "string") {
+            return responseData;
+          }
         }
       }
-
-      if (typeof error.message === "string" && error.message) {
-        return error.message;
-      }
-
-      return "Axios request failed";
-    }
-
-    if (error instanceof Error) {
+    
+    if (
+      "message" in error &&
+      typeof error.message === "string"
+    ) {
       return error.message;
     }
+  }
 
-    if (
-      typeof error === "object" &&
-      "message" in error
-    ) {
-      const message = error.message;
-
-      if (typeof message === "string") {
-        return message;
-      }
-    }
-
+  try {
     return String(error);
+  } catch {
+    return "Unknown error";
   }
 }
 
