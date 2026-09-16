@@ -95,6 +95,11 @@ class Easee extends utils.Adapter {
     this.pendingCircuitUpdate = false;
 
     // Timer / interval storage
+    /** @type {{
+    * readAllStates: ReturnType<typeof setTimeout> | undefined,
+    * updateDynamicCircuitCurrent: ReturnType<typeof setTimeout> | undefined
+    * }}
+    */
     this.adapterIntervals = {
       readAllStates: undefined,
       updateDynamicCircuitCurrent: undefined,
@@ -140,8 +145,8 @@ class Easee extends utils.Adapter {
           await this.ensureValidToken();
 
           if (this.accessToken) {
-            config.headers = config.headers || {};
-            config.headers.Authorization = `Bearer ${this.accessToken}`;
+            config.headers = config.headers ?? {};
+            config.headers["Authorization"] = `Bearer ${this.accessToken}`;
           }
         }
         return config;
@@ -637,7 +642,12 @@ class Easee extends utils.Adapter {
       this.log.error(`Failed to set state ${tmpValueId}: ${this.getErrorMessage(err)}`);
     });
 
-    if (dataName.endsWith("status.chargerOpMode") || tmpValueId.endsWith("status.chargerOpMode")) {
+    if (
+      (dataName.endsWith("status.chargerOpMode") ||
+       tmpValueId.endsWith("status.chargerOpMode")) &&
+      (typeof convertedValue === "string" ||
+       typeof convertedValue === "number")
+    ) {
       this.updateSignalRConnectionForChargerOpMode(safeMid, convertedValue, "SignalR ProductUpdate").catch((err) => {
         this.log.warn(`Failed to update SignalR lifecycle from ProductUpdate: ${this.getErrorMessage(err)}`);
       });
@@ -654,15 +664,15 @@ class Easee extends utils.Adapter {
       case 2: // Boolean
         return value === "1" || value === 1 || value === true;
       case 3: { // Float
-        const parsed = Number.parseFloat(value);
+        const parsed = Number.parseFloat((String(value));
         return Number.isNaN(parsed) ? null : parsed;
       }
       case 4: { // Integer
-        const parsed = Number.parseInt(value, 10);
+        const parsed = Number.parseInt(String(value), 10);
         return Number.isNaN(parsed) ? null : parsed;
       }
       default:
-        return value;
+        return String(value);
     }
   }
 
@@ -996,7 +1006,13 @@ class Easee extends utils.Adapter {
 
   /**
    * Converts an Easee-Observation-Array into the former state object
-   * @param {Array<{id: number, value: any}>} observations 
+   * @param {Array<{
+   *   id?: number,
+   *   Id?: number,
+   *   name?: string,
+   *   value?: unknown,
+   *   Value?: unknown
+   * }>} observations
    * @returns {Record<string, any>} synthetic state object
    */
   mapObservationsToState(observations) {
