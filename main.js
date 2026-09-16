@@ -1417,58 +1417,87 @@ class Easee extends utils.Adapter {
   }
 
   /**
-   * API: Refresh access token
+   * API: Refresh access token.
+   *
+   * @returns {Promise<boolean>} Whether token renewal or fallback login succeeded
    */
   async renewToken() {
-    try {
-      if (!this.accessToken || !this.refreshToken) {
-        this.log.debug("No tokens available, performing full login");
-        return await this.login(this.config.username, this.config.client_secret);
+      try {
+            if (!this.accessToken || !this.refreshToken) {
+                    this.log.debug("No tokens available, performing full login");
+              return await this.login(
+                this.config.username,
+                this.config.client_secret
+              );
+            }
+        this.log.debug("Refreshing token");
+
+        const response = await axios.post(
+          `${API_URL}/api/accounts/refresh_token`,
+          {
+            accessToken: this.accessToken,
+            refreshToken: this.refreshToken,
+          },
+          {
+            httpsAgent: this.httpsAgent,
+            timeout: API_TIMEOUT_MS,
+          }
+        );
+
+        if (
+          !response?.data?.accessToken ||
+          !response?.data?.refreshToken
+        ) {
+          throw new Error("Refresh response does not contain tokens");
+        }
+
+        this.accessToken = response.data.accessToken;
+        this.refreshToken = response.data.refreshToken;
+        this.expireTime =
+          Date.now() +
+          (
+            Number(response.data.expiresIn || 0) * 1000 -
+            TOKEN_SAFETY_MARGIN
+          );
+        this.log.debug("Token refreshed successfully");
+
+        await this.safeSetState("info.connection", true, true);
+        return true;
+      } catch (error) {
+        const status = axios.isAxiosError(error)
+          ? error.response?.status
+          : undefined;
+        this.log.warn(
+          `Token refresh failed (HTTP ${status ?? "?"}): ${this.getErrorMessage(error)}`
+        );
+
+        if (
+          status !== undefined &&
+          status >= 400 &&
+          status < 500
+        ) {
+          this.log.debug(
+            "Refresh token invalid, attempting full login"
+          );
+
+          const loginSuccess = await this.login(
+            this.config.username,
+            this.config.client_secret
+          );
+
+          if (loginSuccess) {
+            return true;
+          }
+
+          this.log.error(
+            "Full login also failed after refresh token error"
+          );
+        }
+
+        this.expireTime = 0;
+        await this.safeSetState("info.connection", false, true);
+        return false;
       }
-
-      this.log.debug("Refreshing token");
-      const response = await axios.post(
-        `${API_URL}/api/accounts/refresh_token`,
-        { accessToken: this.accessToken, refreshToken: this.refreshToken },
-        { httpsAgent: this.httpsAgent, timeout: API_TIMEOUT_MS }
-      );
-
-      if (!response?.data?.accessToken || !response?.data?.refreshToken) {
-        throw new Error("Refresh response does not contain tokens");
-      }
-
-      this.accessToken = response.data.accessToken;
-      this.refreshToken = response.data.refreshToken;
-      this.expireTime = Date.now() + (Number(response.data.expiresIn || 0) * 1000 - TOKEN_SAFETY_MARGIN);
-
-      this.log.debug("Token refreshed successfully");
-
-      await this.safeSetState("info.connection", true, true);
-      return true;
-    } catch (error) {
-      const status = axios.isAxiosError(error)
-        ? error.response?.status
-        : undefined;
-
-      this.log.warn(
-        `Token refresh failed (HTTP ${status ?? "?"}): ${this.getErrorMessage(error)}`
-      );
-    }
-
-    if (
-      status !== undefined &&
-      status >= 400 &&
-      status < 500
-    ) {
-        this.log.debug("Refresh token invalid, attempting full login");
-        const loginSuccess = await this.login(this.config.username, this.config.client_secret);
-        if (loginSuccess) return true;
-        this.log.error("Full login also failed after refresh token error");
-      }
-
-      this.expireTime = 0;
-      await this.safeSetState("info.connection", false, true);
-      return false;
   }
 
   /**
@@ -1958,16 +1987,52 @@ class Easee extends utils.Adapter {
   }
 
   /**
-   * Helper: Extract error message from various error types
-   * @param {Error | string | Object} error The error object or string to parse
+   * Extract an error message safely from an unknown error value.
+   *
+   * @param {unknown} error The caught error value
+   * @returns {string} A human-readable error message
    */
   getErrorMessage(error) {
-    if (!error) return "Unknown error";
-    if (typeof error === "string") return error;
-    if (error.response?.data?.message) return error.response.data.message;
-    if (error instanceof Error) return error.message;
-    if (error.message) return error.message;
-    return String(error);
+    if (error === null || error === undefined) {
+      return "Unknown error";
+    }
+
+    if (typeof error === "string") {
+      return error;
+    }
+
+    if (axios.isAxiosError(error)) {
+      const responseData = error.response?.data;
+
+      if (
+        responseData &&
+        typeof responseData === "object" &&
+        "message" in responseData &&
+        typeof responseData.message === "string"
+      ) {
+        return responseData.message;
+      }
+
+      return error.message;
+    }
+
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    if (
+      typeof error === "object" &&
+      "message" in error &&
+      typeof error.message === "string"
+    ) {
+      return error.message;
+    }
+
+    try {
+      return String(error);
+    } catch {
+      return "Unknown error";
+    }
   }
 }
 
