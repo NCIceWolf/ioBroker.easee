@@ -1720,6 +1720,19 @@ class Easee extends utils.Adapter {
         })
       );
 
+      /**
+       * Definition used for dynamically created status states.
+       *
+       * @typedef {Object} StatusObjectDefinition
+       * @property {string} name Object ID segment
+       * @property {string} displayName Human-readable state name
+       * @property {ioBroker.StateCommon["type"]} type ioBroker state data type
+       * @property {string} role ioBroker state role
+       * @property {string} [unit] Optional unit
+       * @property {ioBroker.StateCommon["states"]} [states] Optional value mapping
+       */
+
+      /** @type {StatusObjectDefinition[]} */
       const statusObjects = [
         { name: "cableLocked", displayName: "Cable lock state", type: "boolean", role: "sensor.lock" },
         { name: "chargerOpMode", displayName: "Charger operation mode", type: "number", role: "value", states: { 0: "Offline", 1: "Disconnected", 2: "AwaitingStart", 3: "Charging", 4: "Completed", 5: "Error", 6: "ReadyToCharge", 7: "AwaitingAuthentication", 8: "DeAuthenticating" } },
@@ -1741,11 +1754,36 @@ class Easee extends utils.Adapter {
       ];
 
       for (const obj of statusObjects) {
-        const common = { name: obj.displayName, type: obj.type, role: obj.role, read: true, write: false };
-        if (obj.unit) common.unit = obj.unit;
-        if (obj.states) common.states = obj.states;
+        /** @type {ioBroker.StateCommon} */
+        const common = {
+          name: obj.displayName,
+          type: obj.type,
+          role: obj.role,
+          read: true,
+          write: false,
+        };
 
-        promises.push(this.setObjectNotExistsAsync(`${baseId}.status.${obj.name}`, { type: "state", common, native: {} }));
+        if (obj.unit !== undefined) {
+          common.unit = obj.unit;
+        }
+
+        if (obj.states !== undefined) {
+          common.states = obj.states;
+        }
+
+        /** @type {Omit<ioBroker.StateObject, "_id" | "acl">} */
+        const stateObject = {
+          type: "state",
+          common,
+          native: {},
+        };
+
+        promises.push(
+          this.setObjectNotExistsAsync(
+            `${baseId}.status.${obj.name}`,
+            stateObject
+          )
+        );
       }
 
       for (let i = 2; i <= 5; i++) {
