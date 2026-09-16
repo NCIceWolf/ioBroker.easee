@@ -215,6 +215,35 @@ class Easee extends utils.Adapter {
    * @property {string} role ioBroker state role
    * @property {string} [unit] Optional unit
    */
+
+  /**
+   * @typedef {Object} EaseeCircuit
+   * @property {string | number} id Circuit identifier
+   */
+  /**
+   * @typedef {Object} EaseeSiteResponse
+   * @property {string | number} id Site identifier
+   * @property {EaseeCircuit[]} circuits Circuits belonging to the site
+   */
+  /**
+   * @typedef {Object} EaseeObservation
+   * @property {number} [id]
+   * @property {number} [Id]
+   * @property {string} [name]
+   * @property {unknown} [value]
+   * @property {unknown} [Value]
+   */
+  /**
+   * @typedef {Object} EaseeObservationResponse
+   * @property {EaseeObservation[]} observations
+   */
+  /**
+   * @typedef {Object} EaseeSession
+   * @property {string | number} [year]
+   * @property {string | number} [month]
+   * @property {number} [totalEnergyUsage]
+   * @property {number} [totalCost]
+   */
   
   /**
    * Helper to safely set a state using setStateChangedAsync
@@ -902,6 +931,57 @@ class Easee extends utils.Adapter {
   }
 
   /**
+   * Check whether an unknown value is a valid Easee observation response.
+   *
+   * @param {unknown} value Value to validate
+   * @returns {value is EaseeObservationResponse}
+   */
+  isObservationResponse(value) {
+    return (
+      value !== null &&
+      typeof value === "object" &&
+      "observations" in value &&
+      Array.isArray(value.observations)
+    );
+  }
+
+  /**
+   * Check whether an unknown value is a valid Easee site response.
+   *
+   * @param {unknown} value Value to validate
+   * @returns {value is EaseeSiteResponse}
+   */
+  isSiteResponse(value) {
+    if (
+      value === null ||
+      typeof value !== "object" ||
+      !("id" in value) ||
+      !("circuits" in value) ||
+      !Array.isArray(value.circuits)
+    ) {
+      return false;
+    }
+
+    if (
+      typeof value.id !== "string" &&
+      typeof value.id !== "number"
+    ) {
+      return false;
+    }
+
+    return value.circuits.every(
+      (circuit) =>
+        circuit !== null &&
+        typeof circuit === "object" &&
+        "id" in circuit &&
+        (
+          typeof circuit.id === "string" ||
+          typeof circuit.id === "number"
+        )
+    );
+  }
+
+  /**
    * Main polling loop to read all charger states
    */
   async readAllStates() {
@@ -997,22 +1077,28 @@ class Easee extends utils.Adapter {
    * Get charger observations
    * @param {string} chargerId The unique identifier of the charger
    * @param {Array<number|string>} [ids] Optional subset of observation IDs
+   * @returns {Promise<EaseeObservation[]>} Charger observations
    */
   async getChargerObservations(chargerId, ids) {
     chargerId = this.validateChargerId(chargerId);
     const encodedChargerId = encodeURIComponent(chargerId);
 
-    const observationIds = ids || Object.keys(EASEE_OBSERVATION_MAP);
-    const idString = Array.isArray(observationIds) ? observationIds.join(",") : observationIds;
+    const observationIds = ids ?? Object.keys(EASEE_OBSERVATION_MAP);
+    const idString = observationIds.join(",");
 
     try {
       const data = await this._apiGet(
         `/state/${encodedChargerId}/observations?ids=${idString}`,
         `getChargerObservations(${chargerId})`
         );
-      this.log.debug(`Charger observations ausgelesen für id: ${chargerId}`);
-
-      return data && data.observations ? data.observations : [];
+      
+      if (!this.isObservationResponse(data)) {
+        this.log.warn(`Invalid observation response for charger ${chargerId}`);
+        return [];
+      }
+      
+      this.log.debug(`Charger observations retrieved for id: ${chargerId}`);
+      return data.observations;
     } catch (error) {
       this.log.error(`Easee API error on charger observations: ${this.getErrorMessage(error)}`);
       throw new Error('Easee API error on charger observations - stop refresh');
@@ -1020,17 +1106,13 @@ class Easee extends utils.Adapter {
   }
 
   /**
-   * Converts an Easee-Observation-Array into the former state object
-   * @param {Array<{
-   *   id?: number,
-   *   Id?: number,
-   *   name?: string,
-   *   value?: unknown,
-   *   Value?: unknown
-   * }>} observations
-   * @returns {Record<string, any>} synthetic state object
+   * Convert an Easee observation array into the former state object
+   * 
+   * @param {EaseeObservation[]} observations Observations to convert
+   * @returns {Record<string, unknown>} Synthetic state object
    */
   mapObservationsToState(observations) {
+    /** @type {Record<string, unknown>} */
     const syntheticState = {};
 
     if (!Array.isArray(observations)) {
@@ -1038,28 +1120,31 @@ class Easee extends utils.Adapter {
     }
 
     for (const obs of observations) {
-      const obsId = obs?.id !== undefined ? obs.id : obs?.Id;
+      const obsId = obs.id !== undefined ? obs.id : obs.Id;
+      
       if (obsId === undefined) continue;
 
       const propertyName = EASEE_OBSERVATION_MAP[obsId] ||
         (obs.name ? obs.name.charAt(0).toLowerCase() + obs.name.slice(1) : null);
 
-      if (propertyName) {
-        let val = obs.value !== undefined ? obs.value : obs.Value;
+      if (!propertyName) {
+        continue;
+      }
 
-        if (val === "true") val = true;
-        if (val === "false") val = false;
+      let val = obs.value !== undefined ? obs.value : obs.Value;
+      if (val === "true") val = true;
+      if (val === "false") val = false;
 
-        // Keep wiFiSSID and version as strings
-        if (propertyName !== "wiFiSSID") {
-          if (typeof val === "string" && !Number.isNaN(Number(val)) && val.trim() !== "") {
-            val = Number(val);
-          }
-        } else if (val !== null && val !== undefined) {
-          val = String(val);
+      // Keep wiFiSSID and version as strings
+      if (propertyName !== "wiFiSSID") {
+        if (typeof val === "string" && val.trim() !== "" && !Number.isNaN(Number(val)) {
+          val = Number(val);
         }
+      } else if (val !== null && val !== undefined) {
+        val = String(val);
+      }
 
-        syntheticState[propertyName] = val;
+      syntheticState[propertyName] = val;
       }
     }
 
@@ -1484,7 +1569,7 @@ class Easee extends utils.Adapter {
         );
 
         if (
-          typeof status === number &&
+          typeof status === "number" &&
           status >= 400 &&
           status < 500
         ) {
@@ -1587,21 +1672,42 @@ class Easee extends utils.Adapter {
   /**
    * Get charger site information
    * @param {string} chargerId The unique identifier of the charger
+   * @returns {Promise<EaseeSiteResponse>} Charger site information
    */
   async getChargerSite(chargerId) {
     chargerId = this.validateChargerId(chargerId);
     const encodedChargerId = encodeURIComponent(chargerId);
-    return await this._apiGet(`/api/chargers/${encodedChargerId}/site`, `getChargerSite(${chargerId})`);
+
+    const data = await this._apiGet(
+      `/api/chargers/${encodedChargerId}/site`,
+      `getChargerSite(${chargerId})`
+    );
+    if (!this.isSiteResponse(data)) {
+      throw new Error(
+        `Invalid site response for charger ${chargerId}`
+      );
+    }
+
+    return data;
   }
 
   /**
    * Get charger session data
+   * 
    * @param {string} chargerId The unique identifier of the charger
+   * @returns {Promise<EaseeSession[]>} Charger session data
    */
   async getChargerSession(chargerId) {
     chargerId = this.validateChargerId(chargerId);
     const encodedChargerId = encodeURIComponent(chargerId);
-    return await this._apiGet(`/api/sessions/charger/${encodedChargerId}/monthly`, `getChargerSession(${chargerId})`);
+    const data = await this._apiGet(
+      `/api/sessions/charger/${encodedChargerId}/monthly`,
+      `getChargerSession(${chargerId})`
+    );
+    if (!Array.isArray(data)) {
+      throw new Error(`Invalid session response for charger ${chargerId}`);
+    }
+    return data;
   }
 
   /**
@@ -1957,8 +2063,9 @@ class Easee extends utils.Adapter {
 
   /**
    * Set charger session data
+   *
    * @param {Object} charger The charger object
-   * @param {Array} chargerSessions The array of session data objects
+   * @param {EaseeSession[]} chargerSessions Session data
    */
   async setNewSessionToCharger(charger, chargerSessions) {
     try {
