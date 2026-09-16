@@ -95,9 +95,10 @@ class Easee extends utils.Adapter {
     this.pendingCircuitUpdate = false;
 
     // Timer / interval storage
-    /** @type {{
-    * readAllStates: ReturnType<typeof setTimeout> | undefined,
-    * updateDynamicCircuitCurrent: ReturnType<typeof setTimeout> | undefined
+    /**
+    * @type {{
+    *   readAllStates: ReturnType<typeof setTimeout> | undefined,
+    *   updateDynamicCircuitCurrent: ReturnType<typeof setTimeout> | undefined
     * }}
     */
     this.adapterIntervals = {
@@ -208,7 +209,7 @@ class Easee extends utils.Adapter {
   /**
    * Definition of a charger configuration state.
    *
-   * @typedef {Object} ConfigObjectDefinition
+   * @typedef {object} ConfigObjectDefinition
    * @property {string} name Object ID segment
    * @property {string} displayName Human-readable state name
    * @property {ioBroker.StateCommon["type"]} type ioBroker state data type
@@ -217,16 +218,16 @@ class Easee extends utils.Adapter {
    */
 
   /**
-   * @typedef {Object} EaseeCircuit
+   * @typedef {object} EaseeCircuit
    * @property {string | number} id Circuit identifier
    */
   /**
-   * @typedef {Object} EaseeSiteResponse
+   * @typedef {object} EaseeSiteResponse
    * @property {string | number} id Site identifier
    * @property {EaseeCircuit[]} circuits Circuits belonging to the site
    */
   /**
-   * @typedef {Object} EaseeObservation
+   * @typedef {object} EaseeObservation
    * @property {number} [id]
    * @property {number} [Id]
    * @property {string} [name]
@@ -234,11 +235,11 @@ class Easee extends utils.Adapter {
    * @property {unknown} [Value]
    */
   /**
-   * @typedef {Object} EaseeObservationResponse
+   * @typedef {object} EaseeObservationResponse
    * @property {EaseeObservation[]} observations
    */
   /**
-   * @typedef {Object} EaseeSession
+   * @typedef {object} EaseeSession
    * @property {string | number} [year]
    * @property {string | number} [month]
    * @property {number} [totalEnergyUsage]
@@ -660,7 +661,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Handle ProductUpdate event from SignalR
-   * @param {Object} data The payload received from SignalR
+   * @param {object} data The payload received from SignalR
    */
   handleSignalRProductUpdate(data) {
     this.lastSignalRActivity = Date.now();
@@ -722,7 +723,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Subscribe all known chargers to SignalR
-   * @param {Object} connection The active SignalR connection object
+   * @param {object} connection The active SignalR connection object
    */
   async subscribeAllChargersToSignalR(connection) {
     for (const chargerId of this.arrCharger) {
@@ -1029,7 +1030,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Process a single charger
-   * @param {Object} charger The charger object from the API
+   * @param {object} charger The charger object from the API
    * @param {boolean} shouldPollEnergy Whether to poll energy session data
    */
   async processCharger(charger, shouldPollEnergy = false) {
@@ -1181,7 +1182,7 @@ class Easee extends utils.Adapter {
   /**
    * Handle state change events
    * @param {string} id The ID of the state that changed
-   * @param {Object} state The new state object
+   * @param {object} state The new state object
    */
   onStateChange(id, state) {
     if (!state) {
@@ -1221,7 +1222,7 @@ class Easee extends utils.Adapter {
    * Handle configuration change with strict type casting
    * @param {string} chargerId The unique identifier of the charger
    * @param {string} property The configuration property to change
-   * @param {Object} state The ioBroker state object containing the new value
+   * @param {object} state The ioBroker state object containing the new value
    */
   async handleConfigChange(chargerId, property, state) {
     if (state.ack) return;
@@ -1389,8 +1390,8 @@ class Easee extends utils.Adapter {
 
   /**
    * Set charger status values
-   * @param {Object} charger The charger object
-   * @param {Object} chargerStates The current states of the charger
+   * @param {object} charger The charger object
+   * @param {object} chargerStates The current states of the charger
    */
   async setNewStatusToCharger(charger, chargerStates) {
     try {
@@ -1453,8 +1454,8 @@ class Easee extends utils.Adapter {
 
   /**
    * Set charger configuration values
-   * @param {Object} charger The charger object
-   * @param {Object} chargerConfig The current configuration of the charger
+   * @param {object} charger The charger object
+   * @param {object} chargerConfig The current configuration of the charger
    */
   async setConfigStatus(charger, chargerConfig) {
     try {
@@ -1645,7 +1646,7 @@ class Easee extends utils.Adapter {
   /**
    * Helper: POST logic
    * @param {string} path The API endpoint path
-   * @param {Object} payload The data payload to post
+   * @param {object} payload The data payload to post
    * @param {string} context A descriptive context for logging
    * @returns {Promise<unknown>} API response data
    */
@@ -1885,7 +1886,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Create status objects for a charger
-   * @param {Object} charger The charger object
+   * @param {object} charger The charger object
    */
   async setAllStatusObjects(charger) {
     try {
@@ -1932,7 +1933,7 @@ class Easee extends utils.Adapter {
       /**
        * Definition used for dynamically created status states.
        *
-       * @typedef {Object} StatusObjectDefinition
+       * @typedef {object} StatusObjectDefinition
        * @property {string} name Object ID segment
        * @property {string} displayName Human-readable state name
        * @property {ioBroker.StateCommon["type"]} type ioBroker state data type
@@ -2035,7 +2036,7 @@ class Easee extends utils.Adapter {
   
   /**
    * Create configuration objects for a charger
-   * @param {Object} charger The charger object
+   * @param {object} charger The charger object
    */
   async setAllConfigObjects(charger) {
     try {
@@ -2088,7 +2089,7 @@ class Easee extends utils.Adapter {
   /**
    * Set charger session data
    *
-   * @param {Object} charger The charger object
+   * @param {object} charger The charger object
    * @param {EaseeSession[]} chargerSessions Session data
    */
   async setNewSessionToCharger(charger, chargerSessions) {
