@@ -1588,7 +1588,7 @@ class Easee extends utils.Adapter {
         );
 
         if (
-          typeof status !== undefined &&
+          typeof status === "number" &&
           status >= 400 &&
           status < 500
         ) {
@@ -2233,6 +2233,7 @@ class Easee extends utils.Adapter {
       return "Unknown error";
     }
   }
+}
 
 if (require.main !== module) {
   // Export the constructor in compact mode
