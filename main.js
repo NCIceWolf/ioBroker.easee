@@ -158,8 +158,12 @@ class Easee extends utils.Adapter {
     client.interceptors.response.use(
       (response) => response,
       async (error) => {
+        if (!axios.isAxiosError(error)) {
+          return Promise.reject(error);
+        }
+        
         const originalRequest = error.config;
-        const status = error.response ? error.response.status : null;
+        const status = error.response?.status;
 
         if (!originalRequest) {
           return Promise.reject(error);
@@ -1424,12 +1428,16 @@ class Easee extends utils.Adapter {
   async renewToken() {
       try {
             if (!this.accessToken || !this.refreshToken) {
-                    this.log.debug("No tokens available, performing full login");
+              this.log.debug(
+                "No tokens available, performing full login"
+              );
+              
               return await this.login(
                 this.config.username,
                 this.config.client_secret
               );
             }
+        
         this.log.debug("Refreshing token");
 
         const response = await axios.post(
@@ -1453,6 +1461,7 @@ class Easee extends utils.Adapter {
 
         this.accessToken = response.data.accessToken;
         this.refreshToken = response.data.refreshToken;
+        
         this.expireTime =
           Date.now() +
           (
@@ -1464,15 +1473,18 @@ class Easee extends utils.Adapter {
         await this.safeSetState("info.connection", true, true);
         return true;
       } catch (error) {
-        const status = axios.isAxiosError(error)
-          ? error.response?.status
-          : undefined;
+        let status;
+
+        if (axios.isAxiosError(error)) {
+          status = error.response?.status;
+        }
+        
         this.log.warn(
           `Token refresh failed (HTTP ${status ?? "?"}): ${this.getErrorMessage(error)}`
         );
 
         if (
-          status !== undefined &&
+          typeof status === number &&
           status >= 400 &&
           status < 500
         ) {
@@ -1504,6 +1516,7 @@ class Easee extends utils.Adapter {
    * Helper: GET logic
    * @param {string} path The API endpoint path
    * @param {string} context A descriptive context for logging
+   * @returns {Promise<unknown>} API response data
    */
   async _apiGet(path, context) {
     try {
@@ -1511,13 +1524,21 @@ class Easee extends utils.Adapter {
       this.log.debug(`${context}: success`);
       return response.data;
     } catch (error) {
-      const status = axios.isAxiosError(error)
-        ? error.response?.status
-        : undefined;
+      let status;
+
+      if (axios.isAxiosError(error)) {
+        status = error.response?.status;
+      }
+      
+      const statusText =
+        typeof status === "number"
+        ? `HTTP ${status}`
+        : "request failed";
 
       this.log.error(
-        `${context}: ${status ? `HTTP ${status}` : "request failed"} - ${this.getErrorMessage(error)}`
+        `${context}: ${statusText} - ${this.getErrorMessage(error)}`
       );
+      throw error;
     }
   }
 
@@ -1526,6 +1547,7 @@ class Easee extends utils.Adapter {
    * @param {string} path The API endpoint path
    * @param {Object} payload The data payload to post
    * @param {string} context A descriptive context for logging
+   * @returns {Promise<unknown>} API response data
    */
   async _apiPost(path, payload, context) {
     try {
@@ -1533,13 +1555,20 @@ class Easee extends utils.Adapter {
       this.log.debug(`${context}: success`);
       return response.data;
     } catch (error) {
-      const status = axios.isAxiosError(error)
-        ? error.response?.status
-        : undefined;
+      let status;
+      if (axios.isAxiosError(error)) {
+        status = error.response?.status;
+      }
+
+      const statusText =
+        typeof status === "number"
+        ? `HTTP ${status}`
+        : "request failed";
 
       this.log.error(
-        `${context}: ${status ? `HTTP ${status}` : "request failed"} - ${this.getErrorMessage(error)}`
+        `${context}: ${statusText} - ${this.getErrorMessage(error)}`
       );
+      throw error;
     }
   }
 
@@ -1987,10 +2016,10 @@ class Easee extends utils.Adapter {
   }
 
   /**
-   * Extract an error message safely from an unknown error value.
+   * Extract a human-readable message from an unknown error value.
    *
-   * @param {unknown} error The caught error value
-   * @returns {string} A human-readable error message
+   * @param {unknown} error The error value
+   * @returns {string} Human-readable error message
    */
   getErrorMessage(error) {
     if (error === null || error === undefined) {
@@ -2005,15 +2034,22 @@ class Easee extends utils.Adapter {
       const responseData = error.response?.data;
 
       if (
-        responseData &&
+        responseData !== null &&
         typeof responseData === "object" &&
-        "message" in responseData &&
-        typeof responseData.message === "string"
+        "message" in responseData
       ) {
-        return responseData.message;
+        const responseMessage = responseData.message;
+
+        if (typeof responseMessage === "string") {
+          return responseMessage;
+        }
       }
 
-      return error.message;
+      if (typeof error.message === "string" && error.message) {
+        return error.message;
+      }
+
+      return "Axios request failed";
     }
 
     if (error instanceof Error) {
@@ -2022,17 +2058,16 @@ class Easee extends utils.Adapter {
 
     if (
       typeof error === "object" &&
-      "message" in error &&
-      typeof error.message === "string"
+      "message" in error
     ) {
-      return error.message;
+      const message = error.message;
+
+      if (typeof message === "string") {
+        return message;
+      }
     }
 
-    try {
-      return String(error);
-    } catch {
-      return "Unknown error";
-    }
+    return String(error);
   }
 }
 
