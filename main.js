@@ -1455,11 +1455,11 @@ class Easee extends utils.Adapter {
       );
     }
 
-      if (
-        status !== undefined &&
-        status >= 400 &&
-        status < 500
-      ) {
+    if (
+      status !== undefined &&
+      status >= 400 &&
+      status < 500
+    ) {
         this.log.debug("Refresh token invalid, attempting full login");
         const loginSuccess = await this.login(this.config.username, this.config.client_secret);
         if (loginSuccess) return true;
@@ -1469,7 +1469,6 @@ class Easee extends utils.Adapter {
       this.expireTime = 0;
       await this.safeSetState("info.connection", false, true);
       return false;
-    }
   }
 
   /**
