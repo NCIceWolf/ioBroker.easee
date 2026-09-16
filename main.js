@@ -951,7 +951,7 @@ class Easee extends utils.Adapter {
    * Check whether an unknown value is a valid Easee observation response.
    *
    * @param {unknown} value Value to validate
-   * @returns {value is EaseeObservationResponse}
+   * @returns {value is EaseeObservationResponse} Whether the value is a valid observation response
    */
   isObservationResponse(value) {
     return (
@@ -966,7 +966,7 @@ class Easee extends utils.Adapter {
    * Check whether an unknown value is a valid Easee site response.
    *
    * @param {unknown} value Value to validate
-   * @returns {value is EaseeSiteResponse}
+   * @returns {value is EaseeSiteResponse} Whether the value is a valid Site response
    */
   isSiteResponse(value) {
     if (
