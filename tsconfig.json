@@ -2,6 +2,7 @@
 {
     "compileOnSave": true,
     "compilerOptions": {
+        "module": "Node16",
         "moduleResolution": "node16",
         "noEmit": true,
 
@@ -9,8 +10,7 @@
         "allowJs": true,
         "checkJs": true,
 
-        "module": "commonjs",
-        "moduleResolution": "node",
+        // Improve compatibility between CommonJS and ES modules
         "esModuleInterop": true,
         // this is necessary for the automatic typing of the adapter config
         "resolveJsonModule": true,
