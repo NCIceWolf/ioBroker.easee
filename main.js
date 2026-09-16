@@ -1485,7 +1485,7 @@ class Easee extends utils.Adapter {
   }
 
   /**
-   * Get all chargers
+   * Get all chargers.
    */
   async getAllCharger() {
     try {
