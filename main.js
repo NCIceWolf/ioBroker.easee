@@ -2219,20 +2219,20 @@ class Easee extends utils.Adapter {
         }
       }
     
-    if (
-      "message" in error &&
-      typeof error.message === "string"
-    ) {
-      return error.message;
+      if (
+        "message" in error &&
+        typeof error.message === "string"
+      ) {
+        return error.message;
+      }
+    }
+
+    try {
+      return String(error);
+    } catch {
+      return "Unknown error";
     }
   }
-
-  try {
-    return String(error);
-  } catch {
-    return "Unknown error";
-  }
-}
 
 if (require.main !== module) {
   // Export the constructor in compact mode
