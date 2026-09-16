@@ -1120,32 +1120,45 @@ class Easee extends utils.Adapter {
     }
 
     for (const obs of observations) {
-      const obsId = obs.id !== undefined ? obs.id : obs.Id;
+      const obsId = obs.id !== undefined 
+        ? obs.id
+        : obs.Id;
       
-      if (obsId === undefined) continue;
+      if (obsId === undefined) {
+        continue;
+      }
 
-      const propertyName = EASEE_OBSERVATION_MAP[obsId] ||
-        (obs.name ? obs.name.charAt(0).toLowerCase() + obs.name.slice(1) : null);
+      const propertyName =
+        EASEE_OBSERVATION_MAP[obsId] ||
+        (
+          obs.name
+          ? obs.name.charAt(0).toLowerCase() + obs.name.slice(1)
+          : null
+        );
 
       if (!propertyName) {
         continue;
       }
 
-      let val = obs.value !== undefined ? obs.value : obs.Value;
+      let val = obs.value !== undefined
+        ? obs.value
+        : obs.Value;
+      
       if (val === "true") val = true;
       if (val === "false") val = false;
 
-      // Keep wiFiSSID and version as strings
-      if (propertyName !== "wiFiSSID") {
-        if (typeof val === "string" && val.trim() !== "" && !Number.isNaN(Number(val)) {
-          val = Number(val);
+      // Keep wiFiSSID as a string
+      if (propertyName === "wiFiSSID") {
+        if (val !== null && val !== undefined) {
+          val = String(val);
         }
-      } else if (val !== null && val !== undefined) {
-        val = String(val);
+      } else if (
+        typeof val === "string" && val.trim() !== "" && !Number.isNaN(Number(val))
+      ) {
+        val = Number(val);
       }
 
       syntheticState[propertyName] = val;
-      }
     }
 
     if (syntheticState.inVoltageT1T2 !== undefined && syntheticState.voltage === undefined) {
