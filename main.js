@@ -1446,15 +1446,14 @@ class Easee extends utils.Adapter {
       await this.safeSetState("info.connection", true, true);
       return true;
     } catch (error) {
-      //const status = error?.response?.status;
-      if (axios.isAxiosError(error)) {
-        const status = error.response?.status;
-      } else {
-        this.log.error(
-          `Unexpected error: ${this.getErrorMessage(error)}`
-        );
-      }
-      this.log.warn(`Token refresh failed (HTTP ${status || "?"}): ${this.getErrorMessage(error)}`);
+      const status = axios.isAxiosError(error)
+        ? error.response?.status
+        : undefined;
+
+      this.log.warn(
+        `Token refresh failed (HTTP ${status ?? "?"}): ${this.getErrorMessage(error)}`
+      );
+    }
 
       if (
         status !== undefined &&
@@ -1484,15 +1483,13 @@ class Easee extends utils.Adapter {
       this.log.debug(`${context}: success`);
       return response.data;
     } catch (error) {
-      //const status = error?.response?.status;
-      if (axios.isAxiosError(error)) {
-        const status = error.response?.status;
-      } else {
-        this.log.error(
-          `Unexpected error: ${this.getErrorMessage(error)}`
-        );
-      }
-      throw new Error(`${context}: ${status ? `HTTP ${status}` : "request failed"} - ${this.getErrorMessage(error)}`);
+      const status = axios.isAxiosError(error)
+        ? error.response?.status
+        : undefined;
+
+      this.log.error(
+        `${context}: ${status ? `HTTP ${status}` : "request failed"} - ${this.getErrorMessage(error)}`
+      );
     }
   }
 
@@ -1508,15 +1505,13 @@ class Easee extends utils.Adapter {
       this.log.debug(`${context}: success`);
       return response.data;
     } catch (error) {
-      //const status = error?.response?.status;
-      if (axios.isAxiosError(error)) {
-        const status = error.response?.status;
-      } else {
-        this.log.error(
-          `Unexpected error: ${this.getErrorMessage(error)}`
-        );
-      }
-      throw new Error(`${context}: ${status ? `HTTP ${status}` : "request failed"} - ${this.getErrorMessage(error)}`);
+      const status = axios.isAxiosError(error)
+        ? error.response?.status
+        : undefined;
+
+      this.log.error(
+        `${context}: ${status ? `HTTP ${status}` : "request failed"} - ${this.getErrorMessage(error)}`
+      );
     }
   }
 
