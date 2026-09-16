@@ -1,11 +1,12 @@
 // Don't silently swallow unhandled rejections
 process.on("unhandledRejection", (error) => {
-  throw error;
+    throw error;
 });
 
-const chai = require("chai");
-const sinonChai = require("sinon-chai").default;
-const chaiAsPromised = require("chai-as-promised").default;
+// Enable the should interface and load Chai plugins
+import * as chai from "chai";
+import sinonChai from "sinon-chai";
+import chaiAsPromised from "chai-as-promised";
 
 chai.use(sinonChai);
 chai.use(chaiAsPromised);
