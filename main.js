@@ -1354,7 +1354,9 @@ class Easee extends utils.Adapter {
           );
         });
       } else if (category === "control") {
-        if (state.ack || state.val !== true) return;
+        if (state.ack || state.val !== true) {
+          return;
+        }
         this.handleControlChange(chargerId, property).catch((error) => {
           this.log.error(
             `Error handling control command ${id}: ${this.getErrorMessage(error)}`,
@@ -2627,7 +2629,9 @@ class Easee extends utils.Adapter {
       const promises = [];
 
       for (const session of chargerSessions) {
-        if (!session?.year || !session?.month) continue;
+        if (!session?.year || !session?.month) {
+          continue;
+        }
 
         const sessionPath = `${baseId}.session.${session.year}.${session.month}`;
 
