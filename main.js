@@ -447,8 +447,9 @@ class Easee extends utils.Adapter {
    * @param {string} reason Human-readable reason for logging
    */
   scheduleSignalRStopGraceTimer(reason) {
-    if (this.signalRUnloaded || this.isUnloading || !this.config.signalR)
+    if (this.signalRUnloaded || this.isUnloading || !this.config.signalR) {
       return;
+    }
 
     if (this.hasAnySignalRChargingCharger()) {
       this.cancelSignalRStopGraceTimer();
@@ -835,14 +836,18 @@ class Easee extends utils.Adapter {
    * Handle SignalR disconnection with exponential backoff
    */
   handleSignalRDisconnection() {
-    if (this.signalRUnloaded || this.isUnloading) return;
+    if (this.signalRUnloaded || this.isUnloading) {
+      return;
+    }
     if (!this.config.signalR || !this.hasAnySignalRChargingCharger()) {
       this.log.debug(
         "SignalR reconnect skipped because no charger is in opMode 2, 3 or 6",
       );
       return;
     }
-    if (this.signalRReconnectTimer) return;
+    if (this.signalRReconnectTimer) {
+      return;
+    }
 
     const delay = this.signalRBackoffMs || 1000;
     this.log.warn(
@@ -870,10 +875,14 @@ class Easee extends utils.Adapter {
    * Start SignalR silent-zombie watchdog
    */
   startSignalRWatchdog() {
-    if (this.signalRWatchdog) return;
+    if (this.signalRWatchdog) {
+      return;
+    }
 
     this.signalRWatchdog = setInterval(() => {
-      if (this.signalRUnloaded || this.isUnloading) return;
+      if (this.signalRUnloaded || this.isUnloading) {
+        return;
+      }
 
       if (!this.hasAnySignalRChargingCharger()) {
         this.scheduleSignalRStopGraceTimer(
@@ -1280,8 +1289,12 @@ class Easee extends utils.Adapter {
 
       let val = obs.value !== undefined ? obs.value : obs.Value;
 
-      if (val === "true") val = true;
-      if (val === "false") val = false;
+      if (val === "true") {
+        val = true;
+      }
+      if (val === "false") {
+        val = false;
+      }
 
       // Keep wiFiSSID as a string
       if (propertyName === "wiFiSSID") {
@@ -1363,7 +1376,9 @@ class Easee extends utils.Adapter {
    * @param {object} state The ioBroker state object containing the new value
    */
   async handleConfigChange(chargerId, property, state) {
-    if (state.ack) return;
+    if (state.ack) {
+      return;
+    }
 
     try {
       chargerId = this.validateChargerId(chargerId);
@@ -2662,7 +2677,9 @@ class Easee extends utils.Adapter {
 
       const yearTotals = {};
       for (const session of chargerSessions) {
-        if (!session?.year) continue;
+        if (!session?.year) {
+          continue;
+        }
         yearTotals[session.year] =
           (yearTotals[session.year] || 0) +
           Number(session.totalEnergyUsage || 0);
