@@ -60,4 +60,4 @@ jobs:
                   # install-command: npm install
                   # install-command: npm install --legacy-peer-deps
                   install-command: npm install --save-dev --save-exact @alcalzone/pak@0.11.0 alcalzone-shared@5.0.0
-                  build: true
+                  # build: true
