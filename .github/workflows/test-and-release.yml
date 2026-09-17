@@ -38,7 +38,7 @@ jobs:
                   node-version: "24.x"
                   # Uncomment the following line if your adapter cannot be installed using 'npm ci'
                   # install-command: npm install
-                  install-command: npm install --save-dev @alcalzone/pak@0.11.0 alcalzone-shared@5.0.0
+                  install-command: npm install --save-exact @alcalzone/pak@0.11.0 alcalzone-shared@5.0.0
                   type-checking: true
                   lint: true
 
