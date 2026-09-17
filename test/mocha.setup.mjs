@@ -1,6 +1,6 @@
 // Don't silently swallow unhandled rejections
 process.on("unhandledRejection", (error) => {
-    throw error;
+  throw error;
 });
 
 // Enable the should interface and load Chai plugins
