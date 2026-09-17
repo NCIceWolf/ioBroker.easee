@@ -291,7 +291,9 @@ class Easee extends utils.Adapter {
    * @param {string} id The string to sanitize
    */
   sanitizeId(id) {
-    if (id === undefined || id === null) return "";
+    if (id === undefined || id === null) {
+      return "";
+    }
     return String(id).replace(/[\][*,;'"`<>\\?.\s]/g, "_");
   }
 
@@ -441,6 +443,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Schedule SignalR shutdown after the grace timeout if no charger returns to charging mode.
+   *
    * @param {string} reason Human-readable reason for logging
    */
   scheduleSignalRStopGraceTimer(reason) {
@@ -487,6 +490,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Stop SignalR and all related timers/reconnect handling.
+   *
    * @param {string} reason Human-readable reason for logging
    */
   async stopSignalRConnection(reason) {
@@ -520,6 +524,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Update SignalR lifecycle based on a charger's operation mode.
+   *
    * @param {string | number} chargerId The charger identifier
    * @param {string | number} opMode Charger operation mode
    * @param {string} source Source used for logging
@@ -734,6 +739,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Handle ProductUpdate event from SignalR
+   *
    * @param {object} data The payload received from SignalR
    */
   handleSignalRProductUpdate(data) {
@@ -783,6 +789,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Convert SignalR value based on dataType
+   *
    * @param {string | number | boolean} value The raw value from SignalR
    * @param {number} dataType The data type indicator from SignalR
    */
@@ -807,6 +814,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Subscribe all known chargers to SignalR
+   *
    * @param {object} connection The active SignalR connection object
    */
   async subscribeAllChargersToSignalR(connection) {
@@ -976,6 +984,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Clean up and unload the adapter
+   *
    * @param {() => void} callback The callback to execute when unload is complete
    */
   onUnload(callback) {
@@ -1133,6 +1142,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Process a single charger
+   *
    * @param {object} charger The charger object from the API
    * @param {boolean} shouldPollEnergy Whether to poll energy session data
    */
@@ -1204,6 +1214,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Get charger observations
+   *
    * @param {string} chargerId The unique identifier of the charger
    * @param {Array<number|string>} [ids] Optional subset of observation IDs
    * @returns {Promise<EaseeObservation[]>} Charger observations
@@ -1300,6 +1311,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Handle state change events
+   *
    * @param {string} id The ID of the state that changed
    * @param {object} state The new state object
    */
@@ -1345,6 +1357,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Handle configuration change with strict type casting
+   *
    * @param {string} chargerId The unique identifier of the charger
    * @param {string} property The configuration property to change
    * @param {object} state The ioBroker state object containing the new value
@@ -1401,6 +1414,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Handle circuit max current change
+   *
    * @param {string} chargerId The unique identifier of the charger
    * @param {string} property The property name being updated
    * @param {number} value The new maximum current value
@@ -1440,6 +1454,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Handle dynamic circuit current change with blocking debouncer
+   *
    * @param {string} chargerId The unique identifier of the charger
    * @param {string} property The property name being updated
    * @param {number} value The new dynamic current value
@@ -1480,6 +1495,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Protected executor for Dynamic Circuit Update
+   *
    * @param {string} chargerId The unique identifier of the charger
    */
   async executeDynamicCircuitUpdate(chargerId) {
@@ -1516,6 +1532,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Handle control commands
+   *
    * @param {string} chargerId The unique identifier of the charger
    * @param {string} command The control command to execute
    */
@@ -1550,6 +1567,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Set charger status values
+   *
    * @param {object} charger The charger object
    * @param {object} chargerStates The current states of the charger
    */
@@ -1633,6 +1651,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Set charger configuration values
+   *
    * @param {object} charger The charger object
    * @param {object} chargerConfig The current configuration of the charger
    */
@@ -1691,6 +1710,7 @@ class Easee extends utils.Adapter {
 
   /**
    * API: Login and get access token
+   *
    * @param {string} username The Easee account username
    * @param {string} password The Easee account password
    */
@@ -1829,6 +1849,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Helper: POST logic
+   *
    * @param {string} path The API endpoint path
    * @param {object} payload The data payload to post
    * @param {string} context A descriptive context for logging
@@ -1866,6 +1887,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Get charger site information
+   *
    * @param {string} chargerId The unique identifier of the charger
    * @returns {Promise<EaseeSiteResponse>} Charger site information
    */
@@ -1905,6 +1927,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Start charging
+   *
    * @param {string} chargerId The unique identifier of the charger
    */
   async startCharging(chargerId) {
@@ -1927,6 +1950,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Stop charging
+   *
    * @param {string} chargerId The unique identifier of the charger
    */
   async stopCharging(chargerId) {
@@ -1949,6 +1973,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Pause charging
+   *
    * @param {string} chargerId The unique identifier of the charger
    */
   async pauseCharging(chargerId) {
@@ -1971,6 +1996,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Resume charging
+   *
    * @param {string} chargerId The unique identifier of the charger
    */
   async resumeCharging(chargerId) {
@@ -1993,6 +2019,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Reboot charger
+   *
    * @param {string} chargerId The unique identifier of the charger
    */
   async rebootCharging(chargerId) {
@@ -2015,6 +2042,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Change charger configuration
+   *
    * @param {string} chargerId The unique identifier of the charger
    * @param {string} configKey The configuration key to update
    * @param {string | number | boolean} value The new value to set
@@ -2106,6 +2134,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Create status objects for a charger
+   *
    * @param {object} charger The charger object
    */
   async setAllStatusObjects(charger) {
@@ -2429,6 +2458,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Create configuration objects for a charger
+   *
    * @param {object} charger The charger object
    */
   async setAllConfigObjects(charger) {
