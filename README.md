@@ -115,9 +115,6 @@ iobroker url 'https://github.com/NCIceWolf/ioBroker.easee/tarball/master' easee
 ### 1.0.0
 * (Newan) Stable Version with SignalR
 
-## Donation
-[![](https://www.paypalobjects.com/de_DE/DE/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=L55UBQJKJEUJL)
-
 ## License
 MIT License
 
