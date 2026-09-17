@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/github/license/NCIcewolf/ioBroker.easee)](LICENSE)
 
 > **Fork-Description:** This Fork offers updates and patches for the unmaintained [Newan/ioBroker.easee](https://github.com/Newan/ioBroker.easee)-Adapter
-> (last Upstream-Release **1.0.10 in Juli 2023**, 23 open issues).
+> (last Upstream-Release **1.0.10 in Juli 2023**).
 
 ## Easee Wallbox Adapter for ioBroker
 
