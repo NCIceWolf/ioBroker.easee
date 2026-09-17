@@ -276,6 +276,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Helper to safely set a state using setStateChangedAsync
+   *
    * @param {string} id The state ID to update
    * @param {string | number | boolean | null} val The new value to set
    * @param {boolean} ack Whether the state is acknowledged
@@ -286,6 +287,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Helper to sanitize IDs to ensure they contain no forbidden ioBroker characters
+   *
    * @param {string} id The string to sanitize
    */
   sanitizeId(id) {
@@ -295,6 +297,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Ensure the access token is valid before a write/read request
+   *
    * @param {boolean} force a token refresh even if not expired
    */
   async ensureValidToken(force = false) {
@@ -317,6 +320,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Validate charger ID format
+   *
    * @param {string | number} chargerId The unique identifier of the charger
    */
   validateChargerId(chargerId) {
@@ -334,6 +338,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Validate site ID format
+   *
    * @param {string | number} siteId The unique identifier of the site
    */
   validateSiteId(siteId) {
@@ -351,6 +356,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Validate circuit ID format
+   *
    * @param {string | number} circuitId The unique identifier of the circuit
    */
   validateCircuitId(circuitId) {
@@ -368,6 +374,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Return whether a charger operation mode requires a live SignalR connection.
+   *
    * @param {string | number} opMode Charger operation mode
    */
   isSignalRChargingOpMode(opMode) {
@@ -380,6 +387,7 @@ class Easee extends utils.Adapter {
 
   /**
    * Return whether a charger operation mode is explicitly considered non-charging.
+   *
    * @param {string | number} opMode Charger operation mode
    */
   isSignalRNonChargingOpMode(opMode) {
